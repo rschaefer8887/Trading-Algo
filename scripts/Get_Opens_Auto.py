@@ -37,6 +37,7 @@ HEADER_ROW = 3  # Data starts the row after headers (e.g. row 4)
 COL_TICKER = "A"
 COL_FLAG = "K"
 COL_OPENING_PRICE = "T"
+CHECK_END_ROW = 550  # Validate column K only through this row for a single O and single 0
 
 
 def _is_start_flag(cell_value) -> bool:
@@ -117,6 +118,21 @@ def main():
         except Exception:
             max_row = 2000
         start_row = HEADER_ROW + 1
+
+        # Ensure exactly one O and one 0 in column K through row 550
+        count_o = 0
+        count_zero = 0
+        end_check = min(max_row, CHECK_END_ROW)
+        for row in range(start_row, end_check + 1):
+            cell_val = sheet.range(f"{COL_FLAG}{row}").value
+            if _is_start_flag(cell_val):
+                count_o += 1
+            elif _is_stop_flag(cell_val):
+                count_zero += 1
+        if count_o != 1 or count_zero != 1:
+            print("One clean range is not selected, please clean up your open range and try again.")
+            wb.close()
+            return
 
         # Find first "O" in column K
         first_o_row = None

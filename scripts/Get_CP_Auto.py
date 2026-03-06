@@ -2,14 +2,13 @@
 Get CP Auto — Automated closing prices into Latest Earnings by column L flags
 
 Reads the Latest Earnings workbook (Trades sheet). Column L contains flags:
-  - First "1": start; write closing prices to column AS until the next 1.
-  - Next "1": switch to column AL until the next 1.
-  - Next "1": switch to column S until a "0" flag.
+  - "M2": write closing prices to column AS from this row until "M1" (optional block).
+  - "M1": write closing prices to column AL from this row until "C".
+  - "C": write closing prices to column S from this row until "0".
   - "0": stop; do not process that row.
 
-For each processed row: ticker from column A, latest close from yfinance,
-written to the current target column (AS, AL, or S). Prints a summary of
-tickers written to each column.
+If no M2, the script looks for M1. If no M1, it looks for C. If no C, it exits
+with "No closing ranges found."
 
 The Earnings file is opened and saved via xlwings (Excel) so that external
 links and other Excel features are preserved. Close the workbook in Excel
@@ -44,20 +43,34 @@ COL_AL = "AL"
 COL_S = "S"
 
 
-def _flag_value(cell_value):
-    """Normalize cell to '0', '1', or None/other. Accepts numeric 1/0 from Excel (e.g. 1.0, 0.0)."""
+def _is_m2(cell_value) -> bool:
+    """True if cell is the flag M2 (case-insensitive)."""
     if cell_value is None:
-        return None
+        return False
+    return str(cell_value).strip().upper() == "M2"
+
+
+def _is_m1(cell_value) -> bool:
+    """True if cell is the flag M1 (case-insensitive)."""
+    if cell_value is None:
+        return False
+    return str(cell_value).strip().upper() == "M1"
+
+
+def _is_c(cell_value) -> bool:
+    """True if cell is the flag C (case-insensitive)."""
+    if cell_value is None:
+        return False
+    return str(cell_value).strip().upper() == "C"
+
+
+def _is_stop(cell_value) -> bool:
+    """True if cell is the stop flag 0 (numeric or string)."""
+    if cell_value is None:
+        return False
     if isinstance(cell_value, (int, float)):
-        if cell_value == 1:
-            return "1"
-        if cell_value == 0:
-            return "0"
-        return None
-    s = str(cell_value).strip()
-    if s in ("0", "1"):
-        return s
-    return None
+        return cell_value == 0
+    return str(cell_value).strip() == "0"
 
 
 def _normalize_ticker(cell_value):
@@ -121,28 +134,25 @@ def main():
             max_row = 2000
         start_row = HEADER_ROW + 1
 
-        zone = 0
-        target_col_letter = None
+        # Column L: M2 -> AS until M1; M1 -> AL until C; C -> S until 0. No flag = no ranges.
+        state = None  # "as" | "al" | "s"
         to_process: list[tuple[int, str, str]] = []
         tickers_to_fetch: list[str] = []
 
         for row in range(start_row, max_row + 1):
             flag_cell = sheet.range(f"{COL_FLAG}{row}").value
-            flag = _flag_value(flag_cell)
 
-            if flag == "0":
+            if _is_stop(flag_cell):
                 break
 
-            if flag == "1":
-                zone += 1
-                if zone == 1:
-                    target_col_letter = COL_AS
-                elif zone == 2:
-                    target_col_letter = COL_AL
-                else:
-                    target_col_letter = COL_S
+            if _is_m2(flag_cell):
+                state = "as"
+            elif _is_m1(flag_cell):
+                state = "al"
+            elif _is_c(flag_cell):
+                state = "s"
 
-            if zone == 0:
+            if state is None:
                 continue
 
             ticker_raw = sheet.range(f"{COL_TICKER}{row}").value
@@ -150,11 +160,17 @@ def main():
             if not ticker:
                 continue
 
+            if state == "as":
+                target_col_letter = COL_AS
+            elif state == "al":
+                target_col_letter = COL_AL
+            else:
+                target_col_letter = COL_S
             to_process.append((row, ticker, target_col_letter))
             tickers_to_fetch.append(ticker)
 
         if not to_process:
-            print("No rows to process (no tickers under flag blocks in column L).")
+            print("No closing ranges found.")
             wb.close()
             return
 
