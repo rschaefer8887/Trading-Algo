@@ -15,9 +15,14 @@ Target layout (Live_Trade_Info.xlsx):
 - Column D (Exit Type) is filled by Exit_Live_Trades_IBKR.py from Earnings column R.
 """
 
+import os
+import warnings
+
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment
-import os
+
+warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*Conditional Formatting extension.*", category=UserWarning)
 
 # ---------------------------------------------------------------------------
 # Paths: Excel files live in the Trading Algo folder (parent of this script)

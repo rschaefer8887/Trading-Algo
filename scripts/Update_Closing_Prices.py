@@ -12,11 +12,16 @@ Layout: Column A = Ticker, B1 = first date, C1 = second date, ... (one column pe
 run date). Rows 2+ = one ticker per row with closing prices under each date.
 """
 
+import os
+import warnings
+from datetime import datetime, timedelta
+
 import yfinance as yf
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment
-from datetime import datetime, timedelta
-import os
+
+warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*Conditional Formatting extension.*", category=UserWarning)
 
 # ---------------------------------------------------------------------------
 # Paths: Excel files live in the Trading Algo folder (parent of this script)

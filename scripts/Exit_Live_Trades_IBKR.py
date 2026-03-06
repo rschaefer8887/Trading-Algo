@@ -22,9 +22,13 @@ Prerequisites:
 
 import os
 import asyncio
+import warnings
 from typing import List, Tuple
 
 from openpyxl import load_workbook
+
+warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*Conditional Formatting extension.*", category=UserWarning)
 
 # Ensure there is an asyncio event loop for ib_insync/eventkit on newer Python versions.
 try:

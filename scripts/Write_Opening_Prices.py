@@ -10,10 +10,15 @@ links and other Excel features are preserved. Close the workbook in Excel
 before running.
 """
 
+import os
+import warnings
+from datetime import datetime
+
 import yfinance as yf
 from openpyxl import Workbook, load_workbook
-from datetime import datetime
-import os
+
+warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*Conditional Formatting extension.*", category=UserWarning)
 
 try:
     import xlwings as xw

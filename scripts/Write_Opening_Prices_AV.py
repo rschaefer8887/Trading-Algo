@@ -12,9 +12,13 @@ before running.
 
 import os
 import time
+import warnings
 from datetime import datetime
 
 from openpyxl import Workbook, load_workbook
+
+warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*Conditional Formatting extension.*", category=UserWarning)
 
 try:
     import requests

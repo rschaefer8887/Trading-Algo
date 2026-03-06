@@ -8,10 +8,15 @@ writes the results to a separate Excel file (Closing_Prices.xlsx).
 Update the source Earnings file path/sheet as needed (e.g. once per quarter).
 """
 
+import os
+import warnings
+from datetime import datetime
+
 import yfinance as yf
 from openpyxl import Workbook, load_workbook
-from datetime import datetime
-import os
+
+warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*Conditional Formatting extension.*", category=UserWarning)
 
 # ---------------------------------------------------------------------------
 # Paths: Excel files live in the Trading Algo folder (project root, two levels up from this script)
