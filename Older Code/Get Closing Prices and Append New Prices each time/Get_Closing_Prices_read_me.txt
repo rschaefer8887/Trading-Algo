@@ -1,0 +1,1 @@
+Get_Closing)Prices will simplet enter an Earnings File and get tickers from the entered row range.  It will then print them to a file called closing prices one time.  This if if I need to get closing prices quick one time, but don't need to save the data.  next time this is run it will overwrite the closing prices and update the date.
