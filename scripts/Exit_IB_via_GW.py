@@ -1,34 +1,23 @@
 """
-Exit Live Trades to Interactive Brokers via IB Gateway based on Live_Trade_Info.xlsx
+Exit Live Trades via IB Gateway with optional Open → MOC changes in Live_Trade_Info.xlsx
 
-This script connects to IB Gateway (not TWS). Use it when Gateway is running for
-exits. Gateway must be running with API enabled. Default ports: 4001 = live, 4002 = paper.
+Same as Exit_GW plus: before reading exit types, asks if any symbols should have their
+order type changed from "Open" to "MOC". If yes, lists symbols, you enter which ones
+(comma-space separated, up to 10); script writes "MOC" to column D for those rows,
+saves the workbook, then reads column D and sends MOC/MKT orders accordingly.
 
-Reads tickers, direction, share size, and exit type from Live_Trade_Info.xlsx (columns A–D)
-via xlwings; the workbook is saved on exit so you can add writes later.
-Column D (header "IB Exit") is written by Stage_Trades_Auto; values map to order type:
-- "Open" → Market order (MKT, executes during the session)
-- Other   → Market-on-close order (MOC)
+- Reads/writes Live_Trade_Info.xlsx (sheet "Prices"), columns A–D via xlwings.
+- Column D: "Open" → MKT, else → MOC. You can change Open → MOC before sending.
+- Still prompts "Send live exit orders? (y/n)" before connecting and sending.
 
-Places exit orders in the **opposite** direction to close/cover:
-- Entry was LONG  (bought)  → Exit: SELL (same size)
-- Entry was SHORT (sold)     → Exit: BUY  (same size)
-
-If any row has an exit type other than "Open", the script prompts:
-"Some IB exit types aren't exits at the open, send anyway? (y/n)" — only sends if y.
-Then prompts "Send live exit orders? (y/n)" before connecting and sending.
-
-Prerequisites:
-- IB Gateway running with API enabled (socket port 4001 live / 4002 paper).
-- Python packages: pip install ib_insync xlwings
-- Close Live_Trade_Info.xlsx in Excel before running.
+Prerequisites: IB Gateway running (API enabled), pip install ib_insync xlwings.
+Close Live_Trade_Info.xlsx in Excel before running.
 """
 
 import os
 import asyncio
 from typing import List, Tuple
 
-# Ensure there is an asyncio event loop for ib_insync/eventkit on newer Python versions.
 try:
     asyncio.get_event_loop()
 except RuntimeError:
@@ -46,31 +35,27 @@ try:
 except ImportError:
     xw = None
 
-
 # ---------------------------------------------------------------------------
-# Paths: Excel files live in the Trading Algo folder (parent of this script)
+# Paths
 # ---------------------------------------------------------------------------
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _BASE_DIR = os.path.dirname(_SCRIPT_DIR)
 
 # ---------------------------------------------------------------------------
-# Configuration — IB Gateway (not TWS)
+# Configuration
 # ---------------------------------------------------------------------------
 LIVE_INFO_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
 LIVE_INFO_SHEET = "Prices"
-# Column D = IB Exit (written by Stage_Trades_Auto); "Open" → MKT, else → MOC
 
-# IB Gateway API connection (4001 = live, 4002 = paper). Use different client ID than Open_Trades_GW.
 IB_HOST = "127.0.0.1"
-IB_PORT = 4001  # 4001 = Gateway live, 4002 = Gateway paper
-IB_CLIENT_ID = 4  # Different from Gateway entry script (3) so both can run if needed
+IB_PORT = 4001
+IB_CLIENT_ID = 4
 IB_ACCOUNT = "U1867866"
-
 DEFAULT_EXCHANGE = "SMART"
 DEFAULT_CURRENCY = "USD"
-
-# When True, only print planned exit orders; do not send them.
 DRY_RUN = False
+
+MAX_SYMBOLS_TO_CHANGE = 10
 
 
 def normalize_direction(direction_cell) -> str:
@@ -83,7 +68,6 @@ def normalize_direction(direction_cell) -> str:
 
 
 def _exit_type_cell_to_order_type(cell_value) -> str:
-    """'Open' (case-insensitive) -> 'MKT', else -> 'MOC'."""
     if cell_value is None or not str(cell_value).strip():
         return "MOC"
     if str(cell_value).strip().lower() == "open":
@@ -91,10 +75,51 @@ def _exit_type_cell_to_order_type(cell_value) -> str:
     return "MOC"
 
 
+def _get_symbols_from_sheet(sheet) -> List[str]:
+    """Return list of non-empty tickers from column A (row 2 onward), order preserved."""
+    try:
+        max_row = sheet.used_range.last_cell.row
+    except Exception:
+        max_row = 1000
+    symbols: List[str] = []
+    for row in range(2, max_row + 1):
+        cell = sheet.range(f"A{row}").value
+        if cell is None or str(cell).strip() == "":
+            continue
+        symbols.append(str(cell).strip().upper())
+    return symbols
+
+
+def _set_exit_type_to_moc(sheet, tickers: List[str]) -> int:
+    """
+    For each ticker in tickers, find row(s) in column A where value matches (case-insensitive)
+    and set column D to "MOC". Returns number of cells updated.
+    """
+    try:
+        max_row = sheet.used_range.last_cell.row
+    except Exception:
+        max_row = 1000
+    ticker_set = {t.upper() for t in tickers}
+    updated = 0
+    for row in range(2, max_row + 1):
+        cell = sheet.range(f"A{row}").value
+        if cell is None or str(cell).strip() == "":
+            continue
+        if str(cell).strip().upper() in ticker_set:
+            sheet.range(f"D{row}").value = "MOC"
+            updated += 1
+    return updated
+
+
+def _parse_moc_input(user_input: str) -> List[str]:
+    """Parse 'AAPL, WMT, MSFT' into ['AAPL','WMT','MSFT'], max 10, strip and uppercase."""
+    parts = [p.strip().upper() for p in user_input.split(",") if p.strip()]
+    return parts[:MAX_SYMBOLS_TO_CHANGE]
+
+
 def read_exit_trade_info(sheet):
     """
-    Read Live_Trade_Info from the given xlwings sheet (columns A–D). Column D = IB Exit.
-    Build exit orders: long → SELL, short → BUY, same size; order type from column D.
+    Read columns A–D from sheet. Column D = IB Exit.
     Returns (exits, all_are_open): exits = [(ticker, action, size, order_type), ...],
     all_are_open = True iff every row's column D is "Open".
     """
@@ -156,7 +181,6 @@ def connect_ib() -> IB:
 
 
 def place_exit_orders_ib(ib: IB, exits: List[Tuple[str, str, int, str]]) -> None:
-    """Place exit orders (MOC or MKT per row) to close/cover positions."""
     if not exits:
         print("No exit orders to place.")
         return
@@ -174,7 +198,7 @@ def place_exit_orders_ib(ib: IB, exits: List[Tuple[str, str, int, str]]) -> None
         contract = Stock(ticker, DEFAULT_EXCHANGE, DEFAULT_CURRENCY)
         order = Order(
             action=action,
-            orderType=order_type,  # "MOC" or "MKT"
+            orderType=order_type,
             totalQuantity=size,
             tif="DAY",
         )
@@ -222,6 +246,27 @@ def main():
             wb.close()
             return
 
+        # Get symbols for optional Open → MOC prompt
+        symbols = _get_symbols_from_sheet(sheet)
+        if not symbols:
+            print("No symbols found in Live_Trade_Info; nothing to do.")
+            wb.close()
+            return
+
+        symbols_str = ", ".join(symbols)
+        reply = input(
+            "\nAre there any symbols that need their order type to change from \"Open\" to \"MOC\"? (y/n): "
+        ).strip().lower()
+        if reply in ("y", "yes"):
+            which = input(
+                f"Which ones to change to MOC ({symbols_str})? "
+            ).strip()
+            tickers_to_moc = _parse_moc_input(which)
+            if tickers_to_moc:
+                n = _set_exit_type_to_moc(sheet, tickers_to_moc)
+                wb.save()
+                print(f"Updated {n} row(s) to MOC for: {', '.join(tickers_to_moc)}.")
+
         exits, all_are_open = read_exit_trade_info(sheet)
 
         if not exits:
@@ -229,7 +274,6 @@ def main():
             wb.close()
             return
 
-        # If any exit type is not "Open", prompt before proceeding
         if not all_are_open:
             reply = input("\nSome IB exit types aren't exits at the open, send anyway? (y/n): ").strip().lower()
             if reply not in ("y", "yes"):

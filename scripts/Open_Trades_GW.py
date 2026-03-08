@@ -56,7 +56,7 @@ _BASE_DIR = os.path.dirname(_SCRIPT_DIR)
 # Path to the Excel file produced by Obtain_Live_Trade_Info.py.
 # This file is the single source of truth for which trades to send.
 LIVE_INFO_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
-LIVE_INFO_SHEET = "Sheet1"  # change if your sheet name is different
+LIVE_INFO_SHEET = "Prices"
 
 # Interactive Brokers API connection settings for IB Gateway.
 # HOST and PORT must match what is configured in IB Gateway (default 4001 live, 4002 paper).
