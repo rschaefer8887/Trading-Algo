@@ -6,8 +6,8 @@ Reads the Latest Earnings workbook (Trades sheet). Column J contains flags:
   - For each such row: ticker from A, direction from Y, share size from Z.
 
 Writes to Live_Trade_Info.xlsx (same layout as Obtain_Live_Trade_Info):
-  - Row 1: A1=Ticker, B1=Direction, C1=Share Size, D1=IBKR Exit
-  - Rows 2+: one row per trade; column D is "open".
+  - Row 1: A1=Ticker, B1=Direction, C1=Share Size, D1=IBKR Exit, E1=ToS Exit
+  - Rows 2+: one row per trade; column D is "open", column E is "MOC" (for Think or Swim exit type).
 """
 
 import os
@@ -37,9 +37,11 @@ COL_DIRECTION = "Y"
 COL_SIZE = "Z"
 
 OUTPUT_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
-OUTPUT_SHEET = "Sheet1"
+OUTPUT_SHEET = "Prices"
 HEADER_D1 = "IBKR Exit"
+HEADER_E1 = "ToS Exit"
 EXIT_TYPE_OPEN = "open"
+TOS_EXIT_MOC = "MOC"
 
 
 def _is_t_flag(cell_value) -> bool:
@@ -66,7 +68,12 @@ def main():
         print(f"Source Earnings file not found: {SOURCE_FILE}")
         return
 
-    wb_source = load_workbook(SOURCE_FILE, data_only=True)
+    try:
+        wb_source = load_workbook(SOURCE_FILE, data_only=True)
+    except PermissionError:
+        print("Please close Latest Earnings Document.")
+        return
+
     try:
         ws_source = wb_source[SOURCE_SHEET]
     except KeyError:
@@ -118,30 +125,32 @@ def main():
         ws_output = wb_output.active
         ws_output.title = OUTPUT_SHEET
 
-    # Header row: Ticker, Direction, Share Size, IBKR Exit
+    # Header row: Ticker, Direction, Share Size, IBKR Exit, ToS Exit
     ws_output["A1"] = "Ticker"
     ws_output["B1"] = "Direction"
     ws_output["C1"] = "Share Size"
     ws_output["D1"] = HEADER_D1
+    ws_output["E1"] = HEADER_E1
 
     # Clear existing data rows (2+)
     if ws_output.max_row > 1:
         ws_output.delete_rows(2, ws_output.max_row - 1)
 
-    # Write one row per trade; column D = "open"
+    # Write one row per trade; column D = "open", column E = "MOC"
     for ticker, direction, size in trades:
         next_row = ws_output.max_row + 1
         ws_output.cell(row=next_row, column=1, value=ticker)
         ws_output.cell(row=next_row, column=2, value=direction)
         ws_output.cell(row=next_row, column=3, value=size)
         ws_output.cell(row=next_row, column=4, value=EXIT_TYPE_OPEN)
+        ws_output.cell(row=next_row, column=5, value=TOS_EXIT_MOC)
 
-    # Left-align headers and data (A, B, C, D)
+    # Left-align headers and data (A through E)
     left_align = Alignment(horizontal="left")
-    for col in range(1, 5):
+    for col in range(1, 6):
         ws_output.cell(row=1, column=col).alignment = left_align
     for row in range(2, ws_output.max_row + 1):
-        for col in range(1, 5):
+        for col in range(1, 6):
             ws_output.cell(row=row, column=col).alignment = left_align
 
     wb_output.save(OUTPUT_FILE)
