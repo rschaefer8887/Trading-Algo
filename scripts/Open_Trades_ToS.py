@@ -1,5 +1,5 @@
 """"
-Send_Trades_Schwab — Send equity entry trades to Schwab based on Live_Trade_Info.xlsx.
+Open_Trades_ToS — Send equity entry trades to Schwab based on Live_Trade_Info.xlsx.
 
 Workflow:
 - Reads Live_Trade_Info.xlsx (sheet "Prices"):
@@ -35,6 +35,7 @@ try:
         equity_buy_market,
         equity_sell_short_market,
     )
+    from schwab.orders.common import OrderType
 except Exception as e:  # pragma: no cover - import-time failure
     equity_buy_market = None  # type: ignore[assignment]
     equity_sell_short_market = None  # type: ignore[assignment]
@@ -128,6 +129,8 @@ def build_orders(trades: List[Tuple[str, str, int]]):
             ob = equity_buy_market(ticker, size)
         else:  # short
             ob = equity_sell_short_market(ticker, size)
+        # Force all Schwab entry orders to be MARKET_ON_CLOSE
+        ob = ob.set_order_type(OrderType.MARKET_ON_CLOSE)
         orders.append((ticker, direction, size, ob))
     return orders
 

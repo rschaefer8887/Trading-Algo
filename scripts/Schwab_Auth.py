@@ -12,7 +12,7 @@ Usage:
 - Run this script once to complete OAuth and cache tokens:
     python scripts/Schwab_Auth.py
 
-Other scripts (e.g. Send_Trades_Schwab.py) can import create_client()
+Other scripts (e.g. Open_Trades_ToS.py) can import create_client()
 to reuse the same credentials and token store.
 """
 
