@@ -55,7 +55,7 @@ try:
         equity_buy_to_cover_market,
     )
     from schwab.orders.common import OrderType, EquityInstruction
-    from schwab.orders.order_builder import OrderBuilder
+    from schwab.orders.generic import OrderBuilder
 except Exception as e:  # pragma: no cover - import-time failure
     equity_sell_market = None  # type: ignore[assignment]
     equity_buy_to_cover_market = None  # type: ignore[assignment]
