@@ -54,13 +54,22 @@ try:
         equity_sell_market,
         equity_buy_to_cover_market,
     )
-    from schwab.orders.common import OrderType, EquityInstruction
+    from schwab.orders.common import (
+        OrderType,
+        EquityInstruction,
+        Duration,
+        Session,
+        OrderStrategyType,
+    )
     from schwab.orders.generic import OrderBuilder
 except Exception as e:  # pragma: no cover - import-time failure
     equity_sell_market = None  # type: ignore[assignment]
     equity_buy_to_cover_market = None  # type: ignore[assignment]
     OrderType = None  # type: ignore[assignment]
     EquityInstruction = None  # type: ignore[assignment]
+    Duration = None  # type: ignore[assignment]
+    Session = None  # type: ignore[assignment]
+    OrderStrategyType = None  # type: ignore[assignment]
     OrderBuilder = None  # type: ignore[assignment]
     SCHWAB_IMPORT_ERROR = e
 
@@ -146,7 +155,15 @@ def read_exit_trade_info(sheet) -> List[Tuple[str, str, int, str]]:
 
 
 def place_exit_orders_schwab(client, account_id: str, exits: List[Tuple[str, str, int, str]]) -> None:
-    if SCHWAB_IMPORT_ERROR is not None or OrderType is None or EquityInstruction is None or OrderBuilder is None:
+    if (
+        SCHWAB_IMPORT_ERROR is not None
+        or OrderType is None
+        or EquityInstruction is None
+        or Duration is None
+        or Session is None
+        or OrderStrategyType is None
+        or OrderBuilder is None
+    ):
         raise ImportError(
             "Could not import Schwab order classes from schwab-py.\n"
             "Install/update schwab-py with:\n"
@@ -182,12 +199,20 @@ def place_exit_orders_schwab(client, account_id: str, exits: List[Tuple[str, str
             else:
                 ot = OrderType.MARKET_ON_CLOSE
 
-            ob = OrderBuilder().set_order_type(ot)
-            ob = ob.add_equity_leg(instr, ticker, size)
+            ob = (
+                OrderBuilder()
+                .set_order_type(ot)
+                .set_duration(Duration.DAY)
+                .set_session(Session.NORMAL)
+                .set_order_strategy_type(OrderStrategyType.SINGLE)
+                .add_equity_leg(instr, ticker, size)
+            )
             order_spec = ob.build()
             resp = client.place_order(account_id, order_spec)
-            status = resp.status_code if hasattr(resp, "status_code") else resp
+            status = getattr(resp, "status_code", None)
+            text = getattr(resp, "text", None)
             print(f"Submitted {action} {size} {ticker} ({order_type}), response: {status}")
+            print(status, text)
         except Exception as e:
             print(f"Error placing Schwab exit order for {ticker}: {e}")
 
