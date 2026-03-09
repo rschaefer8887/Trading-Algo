@@ -252,10 +252,9 @@ def main():
     """
     Orchestrate the full workflow:
       1) Read and validate trades from Live_Trade_Info.xlsx.
-      2) Prompt: Send live trades? (y/n); exit if no.
-      3) Connect to IB via Gateway.
-      4) Either print the trades only (DRY_RUN) or submit MOC orders.
-      5) Cleanly disconnect from IB regardless of success/failure.
+      2) Connect to IB via Gateway.
+      3) Either print the trades only (DRY_RUN) or submit MOC orders.
+      4) Cleanly disconnect from IB regardless of success/failure.
     """
     try:
         trades = read_live_trade_info()
@@ -266,11 +265,6 @@ def main():
     if not trades:
         print("No valid trades found in Live_Trade_Info; nothing to do.")
         sys.exit(0)  # Clean exit for scheduled runs with no trades
-
-    reply = input("\nSend live trades? (y/n): ").strip().lower()
-    if reply not in ("y", "yes"):
-        print("Exiting without sending trades.")
-        return
 
     try:
         ib = connect_ib()
