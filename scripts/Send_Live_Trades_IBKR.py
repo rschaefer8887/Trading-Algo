@@ -62,7 +62,7 @@ IB_CLIENT_ID = 1
 
 # Account to send orders to (empty string = IB default).
 # Keeping this as a single constant makes it easy to switch accounts later.
-IB_ACCOUNT = "U1867866"
+IB_ACCOUNT = "U24159961"
 
 # Trading defaults
 DEFAULT_EXCHANGE = "SMART"

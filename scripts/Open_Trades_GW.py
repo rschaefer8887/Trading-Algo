@@ -18,6 +18,7 @@ Prerequisites:
 """
 
 import os
+import sys
 import asyncio
 import warnings
 from typing import List, Tuple
@@ -171,7 +172,7 @@ def connect_ib() -> IB:
     return ib
 
 
-def place_trades_ib(ib: IB, trades: List[Tuple[str, str, int]]) -> None:
+def place_trades_ib(ib: IB, trades: List[Tuple[str, str, int]]) -> bool:
     """
     Print a summary of planned trades and, when DRY_RUN is False, send
     Market-On-Close (MOC) orders for each one.
@@ -181,10 +182,13 @@ def place_trades_ib(ib: IB, trades: List[Tuple[str, str, int]]) -> None:
       - type:  MOC (market-on-close)
       - tif:   DAY (good for this trading day only)
       - account: IB_ACCOUNT when set
+
+    Returns True if all orders were accepted (or no orders sent); False if any
+    order was cancelled or rejected.
     """
     if not trades:
         print("No trades to place.")
-        return
+        return True
 
     print("\nPlanned trades:")
     for ticker, action, size in trades:
@@ -193,9 +197,10 @@ def place_trades_ib(ib: IB, trades: List[Tuple[str, str, int]]) -> None:
     if DRY_RUN:
         print("\nDRY_RUN is True: no orders will be sent. "
               "Set DRY_RUN = False at the top of this script to send live orders.")
-        return
+        return True
 
     print("\nPlacing market-on-close (MOC) orders...")
+    placed_trades = []  # track only the orders we submit this run
     for ticker, action, size in trades:
         contract = Stock(ticker, DEFAULT_EXCHANGE, DEFAULT_CURRENCY)
         # MOC order via generic Order: type 'MOC', market-on-close
@@ -209,38 +214,38 @@ def place_trades_ib(ib: IB, trades: List[Tuple[str, str, int]]) -> None:
             order.account = IB_ACCOUNT
 
         trade = ib.placeOrder(contract, order)
+        placed_trades.append(trade)
         print(f"Submitted {action} {size} {ticker}, orderId={trade.order.orderId}")
 
-    # Give IB a moment to process, then print final statuses
-    ib.sleep(2)
-    print("\nOrder statuses:")
+    # Give IB time to process and return status (including cancellations/rejections)
+    ib.sleep(3)
+    # Status sets for reporting
     cancelled_statuses = {"Cancelled", "ApiCancelled", "Inactive"}
-    n_submitted_pending = 0
+    rejected_statuses = {"Rejected", "ApiRejected"}
+    error_statuses = cancelled_statuses | rejected_statuses
+
+    n_ok = 0
     n_filled = 0
-    n_cancelled = 0
-    for t in ib.trades():
+    n_cancelled_rejected = 0
+    cancelled_rejected_tickers = []
+    for t in placed_trades:
         ticker = t.contract.symbol
         status = t.orderStatus.status
-        filled = t.orderStatus.filled
-        remaining = t.orderStatus.remaining
-        print(
-            f"  {ticker}  orderId={t.order.orderId} status={status} "
-            f"filled={filled} remaining={remaining}"
-        )
         if status == "Filled":
             n_filled += 1
-        elif status in cancelled_statuses:
-            n_cancelled += 1
+            n_ok += 1
+        elif status in error_statuses:
+            n_cancelled_rejected += 1
+            cancelled_rejected_tickers.append(f"{ticker} ({status})")
         else:
-            n_submitted_pending += 1
-    print(
-        f"\n  Summary: {n_submitted_pending} submitted/pending, "
-        f"{n_filled} filled, {n_cancelled} cancelled."
-    )
-    if n_cancelled > 0:
-        print(
-            f"  WARNING: {n_cancelled} order(s) cancelled or inactive - check TWS/Gateway."
-        )
+            n_ok += 1  # Pending, PreSubmitted, etc.
+
+    if n_cancelled_rejected > 0:
+        failed_list = ", ".join(cancelled_rejected_tickers)
+        print(f"\nERROR: Did not execute: {failed_list}.")
+        return False
+    print(f"\nOK: {len(placed_trades)} order(s) placed.")
+    return True
 
 
 def main():
@@ -260,7 +265,7 @@ def main():
 
     if not trades:
         print("No valid trades found in Live_Trade_Info; nothing to do.")
-        return
+        sys.exit(0)  # Clean exit for scheduled runs with no trades
 
     reply = input("\nSend live trades? (y/n): ").strip().lower()
     if reply not in ("y", "yes"):
@@ -273,12 +278,15 @@ def main():
         print(f"Failed to connect to IB Gateway: {e}")
         return
 
+    all_ok = True
     try:
-        place_trades_ib(ib, trades)
+        all_ok = place_trades_ib(ib, trades)
     finally:
         print("Disconnecting from IB...")
         ib.disconnect()
         print("Disconnected.")
+    if not all_ok:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

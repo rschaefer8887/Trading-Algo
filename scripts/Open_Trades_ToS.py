@@ -24,6 +24,7 @@ Prerequisites:
 """
 
 import os
+import sys
 from typing import List, Tuple
 
 from openpyxl import load_workbook
@@ -144,7 +145,7 @@ def main() -> None:
 
     if not trades:
         print("No valid trades found in Live_Trade_Info; nothing to send to Schwab.")
-        return
+        sys.exit(0)  # Clean exit for scheduled runs with no trades
 
     orders = build_orders(trades)
 
