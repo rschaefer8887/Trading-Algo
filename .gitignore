@@ -24,3 +24,7 @@ Thumbs.db
 # Local / generated (uncomment if you don't want to track these)
 # *.xlsx
 # IBKR_Watchlist_Import.csv
+
+# Schwab API local config/tokens (do not commit secrets)
+schwab_config.json
+schwab_tokens.json
