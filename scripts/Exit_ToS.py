@@ -32,6 +32,7 @@ Prerequisites:
 """
 
 import os
+import sys
 from typing import List, Tuple
 
 import asyncio
@@ -252,7 +253,7 @@ def main() -> None:
         if not exits:
             print("No valid rows in Live_Trade_Info; nothing to exit.")
             wb.close()
-            return
+            sys.exit(0)  # Clean exit for scheduled runs with no trades
 
         # Single confirmation prompt before sending
         reply = input("\nSend live exit orders to Schwab? (y/n): ").strip().lower()

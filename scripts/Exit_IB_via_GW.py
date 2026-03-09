@@ -15,6 +15,7 @@ Close Live_Trade_Info.xlsx in Excel before running.
 """
 
 import os
+import sys
 import asyncio
 from typing import List, Tuple
 
@@ -251,7 +252,7 @@ def main():
         if not symbols:
             print("No symbols found in Live_Trade_Info; nothing to do.")
             wb.close()
-            return
+            sys.exit(0)  # Clean exit for scheduled runs with no trades
 
         symbols_str = ", ".join(symbols)
         reply = input(
@@ -272,7 +273,7 @@ def main():
         if not exits:
             print("No valid rows in Live_Trade_Info; nothing to exit.")
             wb.close()
-            return
+            sys.exit(0)  # Clean exit for scheduled runs with no trades
 
         if not all_are_open:
             reply = input("\nSome IB exit types aren't exits at the open, send anyway? (y/n): ").strip().lower()

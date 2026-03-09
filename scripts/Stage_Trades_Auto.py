@@ -11,6 +11,7 @@ Writes to Live_Trade_Info.xlsx (same layout as Obtain_Live_Trade_Info):
 """
 
 import os
+import sys
 import warnings
 
 from openpyxl import Workbook, load_workbook
@@ -112,7 +113,19 @@ def main():
 
     if not trades:
         print("No valid trades found (no rows with 'T' in column J had ticker, direction, and share size).")
-        return
+        # Clear Live_Trade_Info so Open_Trades_GW / Open_Trades_ToS see no trades
+        if os.path.exists(OUTPUT_FILE):
+            try:
+                wb_out = load_workbook(OUTPUT_FILE)
+                ws_out = wb_out[OUTPUT_SHEET] if OUTPUT_SHEET in wb_out.sheetnames else wb_out.active
+                if ws_out.max_row > 1:
+                    ws_out.delete_rows(2, ws_out.max_row - 1)
+                wb_out.save(OUTPUT_FILE)
+                print("Cleared existing trades in Live_Trade_Info.")
+            except PermissionError:
+                print("Could not update Live_Trade_Info (file may be open). Please close it.")
+                sys.exit(1)
+        sys.exit(0)  # Clean exit for scheduled runs with no trades
 
     print(f"Collected {len(trades)} trade(s) from Earnings (column J = T).")
 
