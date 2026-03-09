@@ -1,4 +1,4 @@
- """"
+""""
 Send_Trades_Schwab — Send equity entry trades to Schwab based on Live_Trade_Info.xlsx.
 
 Workflow:
