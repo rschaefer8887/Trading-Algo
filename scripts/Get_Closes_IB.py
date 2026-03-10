@@ -11,6 +11,7 @@ The workbook is opened and saved via xlwings. Close it in Excel before running.
 """
 
 import os
+import sys
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 
@@ -237,7 +238,7 @@ def main():
         if not to_process:
             print("No closing ranges found.")
             wb.close()
-            return
+            sys.exit(0)  # Clean exit for scheduled runs with no closing ranges in column L
 
         print(f"Fetching closing prices for {len(tickers_to_fetch)} ticker(s) from IB Gateway...")
         prices = _fetch_closes_via_ib(tickers_to_fetch)

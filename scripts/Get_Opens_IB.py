@@ -11,6 +11,7 @@ The workbook is opened and saved via xlwings. Close it in Excel before running.
 """
 
 import os
+import sys
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 
@@ -200,7 +201,7 @@ def main():
         if count_o != 1 or count_zero != 1:
             print("One clean range is not selected, please clean up your open range and try again.")
             wb.close()
-            return
+            sys.exit(0)  # Clean exit for scheduled runs with no valid range
 
         first_o_row = None
         for row in range(start_row, max_row + 1):
@@ -212,7 +213,7 @@ def main():
         if first_o_row is None:
             print("No 'O' flag found in column K. Nothing to process.")
             wb.close()
-            return
+            sys.exit(0)  # Clean exit for scheduled runs with no O in column K
 
         to_process: list[tuple[int, str]] = []
         for row in range(first_o_row, max_row + 1):
@@ -228,7 +229,7 @@ def main():
         if not to_process:
             print("No tickers found in rows between 'O' and '0' in column K.")
             wb.close()
-            return
+            sys.exit(0)  # Clean exit for scheduled runs with no tickers in range
 
         tickers_to_fetch = [t for _, t in to_process]
         print(f"Fetching opening prices for {len(tickers_to_fetch)} ticker(s) from IB Gateway...")
