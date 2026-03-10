@@ -121,8 +121,7 @@ def _parse_moc_input(user_input: str) -> List[str]:
 def read_exit_trade_info(sheet):
     """
     Read columns A–D from sheet. Column D = IB Exit.
-    Returns (exits, all_are_open): exits = [(ticker, action, size, order_type), ...],
-    all_are_open = True iff every row's column D is "Open".
+    Returns exits = [(ticker, action, size, order_type), ...].
     """
     try:
         max_row = sheet.used_range.last_cell.row
@@ -130,7 +129,6 @@ def read_exit_trade_info(sheet):
         max_row = 1000
 
     exits: List[Tuple[str, str, int, str]] = []
-    all_are_open = True
 
     for row in range(2, max_row + 1):
         ticker_cell = sheet.range(f"A{row}").value
@@ -159,12 +157,10 @@ def read_exit_trade_info(sheet):
             continue
 
         order_type = _exit_type_cell_to_order_type(exit_type_cell)
-        if order_type != "MKT":
-            all_are_open = False
         action = "SELL" if direction_norm == "long" else "BUY"
         exits.append((ticker, action, size, order_type))
 
-    return exits, all_are_open
+    return exits
 
 
 def connect_ib() -> IB:
@@ -268,19 +264,12 @@ def main():
                 wb.save()
                 print(f"Updated {n} row(s) to MOC for: {', '.join(tickers_to_moc)}.")
 
-        exits, all_are_open = read_exit_trade_info(sheet)
+        exits = read_exit_trade_info(sheet)
 
         if not exits:
             print("No valid rows in Live_Trade_Info; nothing to exit.")
             wb.close()
             sys.exit(0)  # Clean exit for scheduled runs with no trades
-
-        if not all_are_open:
-            reply = input("\nSome IB exit types aren't exits at the open, send anyway? (y/n): ").strip().lower()
-            if reply not in ("y", "yes"):
-                print("Exiting without sending orders.")
-                wb.close()
-                return
 
         reply = input("\nSend live exit orders? (y/n): ").strip().lower()
         if reply not in ("y", "yes"):

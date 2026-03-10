@@ -11,9 +11,7 @@ Workflow:
 - For each valid row:
     - long  -> Schwab equity BUY market
     - short -> Schwab equity SELL SHORT market
-- Prints a planned orders summary, then prompts:
-    "Send Schwab live trades? (y/n)"
-- If you confirm, sends orders via Schwab Trader API using schwab-py.
+- Sends orders via Schwab Trader API using schwab-py (no prompt; suitable for scheduled runs).
 
 Prerequisites:
 - schwab-py installed:
@@ -153,11 +151,6 @@ def main() -> None:
     for ticker, direction, size, _ in orders:
         side = "BUY" if direction == "long" else "SELL SHORT"
         print(f"  {side} {size} {ticker}")
-
-    reply = input("\nSend Schwab live trades? (y/n): ").strip().lower()
-    if reply not in ("y", "yes"):
-        print("Exiting without sending Schwab trades.")
-        return
 
     try:
         client, cfg = create_client()
