@@ -41,10 +41,10 @@ except Exception as e:  # catch any import-time problem
 
 
 # ---------------------------------------------------------------------------
-# Paths: Excel files live in the Trading Algo folder (parent of this script)
+# Paths: Excel files live in repo root (Trading Algo); script is in Old Scripts
 # ---------------------------------------------------------------------------
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_BASE_DIR = os.path.dirname(_SCRIPT_DIR)
+_BASE_DIR = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 
 # ---------------------------------------------------------------------------
 # Configuration — adjust to your environment

@@ -29,7 +29,7 @@ from typing import List, Tuple
 
 from openpyxl import load_workbook
 
-from Schwab_Auth import create_client  # same folder
+from Schwab_Auth import create_client
 
 try:
     from schwab.orders.equities import (

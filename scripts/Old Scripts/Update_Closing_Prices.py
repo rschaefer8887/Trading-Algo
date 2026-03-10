@@ -24,10 +24,10 @@ warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=User
 warnings.filterwarnings("ignore", message=".*Conditional Formatting extension.*", category=UserWarning)
 
 # ---------------------------------------------------------------------------
-# Paths: Excel files live in the Trading Algo folder (parent of this script)
+# Paths: Excel files live in repo root (Trading Algo); script is in Old Scripts
 # ---------------------------------------------------------------------------
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_BASE_DIR = os.path.dirname(_SCRIPT_DIR)
+_BASE_DIR = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 
 # ---------------------------------------------------------------------------
 # Configuration — update source file path when you refresh your earnings file

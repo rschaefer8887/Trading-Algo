@@ -1,9 +1,9 @@
 """
-Get Closing Prices
+Get Opening Prices
 
 Reads a list of stock tickers from an Excel "Earnings" workbook (Trades sheet),
-fetches the latest closing price for each via Yahoo Finance (yfinance), and
-writes the results to a separate Excel file (Closing_Prices.xlsx).
+fetches the latest opening price for each via Yahoo Finance (yfinance), and
+writes the results to a separate Excel file (Opening_Prices_One_Time.xlsx).
 
 Update the source Earnings file path/sheet as needed (e.g. once per quarter).
 """
@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=User
 warnings.filterwarnings("ignore", message=".*Conditional Formatting extension.*", category=UserWarning)
 
 # ---------------------------------------------------------------------------
-# Paths: Excel files live in the Trading Algo folder (project root, two levels up from this script)
+# Paths: Excel files live in repo root (Trading Algo); script is in Old Scripts
 # ---------------------------------------------------------------------------
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _BASE_DIR = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
@@ -32,7 +32,7 @@ source_sheet = "Trades"  # Sheet that contains the ticker list
 header_row = 3  # Row index where column headers live (tickers start below this)
 ticker_column_letter = "A"  # Column containing ticker symbols
 
-output_file = os.path.join(_BASE_DIR, "Closing_Prices_One_Time.xlsx")
+output_file = os.path.join(_BASE_DIR, "Opening_Prices_One_Time.xlsx")
 output_sheet = "Prices"  # Name of the sheet in the output workbook
 
 # ---------------------------------------------------------------------------
@@ -72,10 +72,10 @@ if not tickers:
 print(f"Found {len(tickers)} tickers: {tickers}")
 
 # ---------------------------------------------------------------------------
-# Fetch latest closing prices from Yahoo Finance (1-day period = latest close)
+# Fetch latest opening prices from Yahoo Finance (1-day period = latest open)
 # ---------------------------------------------------------------------------
 # group_by='ticker' keeps each ticker in its own column when multiple tickers
-# auto_adjust=True uses adjusted close; threads=True speeds up multi-ticker download
+# auto_adjust=True uses adjusted prices; threads=True speeds up multi-ticker download
 data = yf.download(tickers, period="1d", group_by='ticker', auto_adjust=True, threads=True)
 
 if data.empty:
@@ -97,20 +97,20 @@ else:
     ws_output.title = output_sheet
 
 # Column headers for the output sheet
-ws_output.append(["Ticker", "Date", "Closing Price"])
+ws_output.append(["Ticker", "Date", "Opening Price"])
 
 today = datetime.today().strftime("%Y-%m-%d")
 
 # ---------------------------------------------------------------------------
-# Write one row per ticker: symbol, date, and closing price (or None if fetch failed)
+# Write one row per ticker: symbol, date, and opening price (or None if fetch failed)
 # ---------------------------------------------------------------------------
 for ticker in tickers:
     try:
         # yfinance returns different DataFrame shapes: multi-level columns for 2+ tickers, flat for 1
         if len(tickers) > 1:
-            price = data[ticker]['Close'].iloc[-1]
+            price = data[ticker]['Open'].iloc[-1]
         else:
-            price = data['Close'].iloc[-1]
+            price = data['Open'].iloc[-1]
         ws_output.append([ticker, today, price])
     except Exception as e:
         print(f"Could not get price for {ticker}: {e}")
