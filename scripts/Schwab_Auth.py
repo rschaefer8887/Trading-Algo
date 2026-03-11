@@ -75,6 +75,8 @@ def create_client() -> Tuple[Any, Dict[str, Any]]:
         app_secret=cfg["app_secret"],
         callback_url=cfg["callback_url"],
         token_path=os.path.join(_BASE_DIR, cfg["token_path"]),
+        requested_browser="windows-default",
+        interactive=False,
     )
     return client, cfg
 
