@@ -3,7 +3,7 @@ Link this folder to your GitHub repository
 
 Option 1 — Run the script (e.g. in PowerShell or a terminal where Git is on PATH)
 
-  cd "C:\Users\ryanc\OneDrive\repos\Trading Algo"
+  cd "C:\Users\ryanc\OneDrive\repos\Trading_Algo"
   .\Link_GitHub.ps1
 
   When prompted, paste your GitHub repo URL (e.g. https://github.com/YourUsername/Trading-Algo.git).
@@ -13,7 +13,7 @@ Option 1 — Run the script (e.g. in PowerShell or a terminal where Git is on PA
 
 Option 2 — Run the commands yourself
 
-  cd "C:\Users\ryanc\OneDrive\repos\Trading Algo"
+  cd "C:\Users\ryanc\OneDrive\repos\Trading_Algo"
   git init
   git remote add origin YOUR_GITHUB_REPO_URL
   git add .

@@ -25,7 +25,7 @@ warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=User
 warnings.filterwarnings("ignore", message=".*Conditional Formatting extension.*", category=UserWarning)
 
 # ---------------------------------------------------------------------------
-# Paths: Excel files live in repo root (Trading Algo); script is in Old Scripts
+# Paths: Excel files live in repo root (Trading_Algo); script is in Old Scripts
 # ---------------------------------------------------------------------------
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _BASE_DIR = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
@@ -88,7 +88,7 @@ def main():
     # -----------------------------------------------------------------------
     if not os.path.exists(source_file):
         print(f"Source Earnings file not found:\n  {source_file}")
-        print("\nEnsure your Earnings workbook is in the Trading Algo folder (parent of the scripts folder).")
+        print("\nEnsure your Earnings workbook is in the Trading_Algo folder (parent of the scripts folder).")
         return
 
     # -----------------------------------------------------------------------
