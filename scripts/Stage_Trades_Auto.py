@@ -3,11 +3,12 @@ Stage Trades Auto — Build Live_Trade_Info from Latest Earnings using column J 
 
 Reads the Latest Earnings workbook (Trades sheet). Column J contains flags:
   - Rows with "T" (letter T) in column J are included in the trade list.
-  - For each such row: ticker from A, direction from Y, share size from Z.
+  - For each such row: ticker from A, direction from Y, share size from Z,
+    IBKR Exit from AZ, ToS Exit from AY.
 
 Writes to Live_Trade_Info.xlsx (same layout as Obtain_Live_Trade_Info):
   - Row 1: A1=Ticker, B1=Direction, C1=Share Size, D1=IBKR Exit, E1=ToS Exit
-  - Rows 2+: one row per trade; column D is "open", column E is "MOC" (for Think or Swim exit type).
+  - Rows 2+: one row per trade; column D from Latest Earnings AZ, column E from AY.
 """
 
 import os
@@ -36,13 +37,13 @@ COL_FLAG = "J"
 COL_TICKER = "A"
 COL_DIRECTION = "Y"
 COL_SIZE = "Z"
+COL_IBKR_EXIT = "AZ"   # Source for Live_Trade_Info column D
+COL_TOS_EXIT = "AY"    # Source for Live_Trade_Info column E
 
 OUTPUT_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
 OUTPUT_SHEET = "Prices"
 HEADER_D1 = "IBKR Exit"
 HEADER_E1 = "ToS Exit"
-EXIT_TYPE_OPEN = "open"
-TOS_EXIT_MOC = "MOC"
 
 
 def _is_t_flag(cell_value) -> bool:
@@ -62,6 +63,13 @@ def _normalize_direction(cell_value):
     if cell_value is None:
         return None
     return str(cell_value).strip().lower()
+
+
+def _cell_to_str(cell_value):
+    """Return cell value as string for exit-type columns; empty string if None."""
+    if cell_value is None:
+        return ""
+    return str(cell_value).strip()
 
 
 def main():
@@ -85,7 +93,7 @@ def main():
     start_row = HEADER_ROW + 1
 
     # Collect every row where column J has "T"
-    trades = []  # list of (ticker, direction, size)
+    trades = []  # list of (ticker, direction, size, ibkr_exit, tos_exit)
     for row in range(start_row, max_row + 1):
         flag_cell = ws_source[f"{COL_FLAG}{row}"].value
         if not _is_t_flag(flag_cell):
@@ -94,10 +102,14 @@ def main():
         raw_ticker = ws_source[f"{COL_TICKER}{row}"].value
         raw_direction = ws_source[f"{COL_DIRECTION}{row}"].value
         raw_size = ws_source[f"{COL_SIZE}{row}"].value
+        raw_ibkr_exit = ws_source[f"{COL_IBKR_EXIT}{row}"].value
+        raw_tos_exit = ws_source[f"{COL_TOS_EXIT}{row}"].value
 
         ticker = _normalize_ticker(raw_ticker)
         direction = _normalize_direction(raw_direction)
         size = raw_size
+        ibkr_exit = _cell_to_str(raw_ibkr_exit)
+        tos_exit = _cell_to_str(raw_tos_exit)
 
         if not ticker:
             print(f"Row {row}: missing ticker; skipping.")
@@ -109,7 +121,7 @@ def main():
             print(f"Row {row}: missing share size for ticker {ticker}; skipping.")
             continue
 
-        trades.append((ticker, direction, size))
+        trades.append((ticker, direction, size, ibkr_exit, tos_exit))
 
     if not trades:
         print("No valid trades found (no rows with 'T' in column J had ticker, direction, and share size).")
@@ -149,14 +161,14 @@ def main():
     if ws_output.max_row > 1:
         ws_output.delete_rows(2, ws_output.max_row - 1)
 
-    # Write one row per trade; column D = "open", column E = "MOC"
-    for ticker, direction, size in trades:
+    # Write one row per trade; column D from Latest Earnings AZ, column E from AY
+    for ticker, direction, size, ibkr_exit, tos_exit in trades:
         next_row = ws_output.max_row + 1
         ws_output.cell(row=next_row, column=1, value=ticker)
         ws_output.cell(row=next_row, column=2, value=direction)
         ws_output.cell(row=next_row, column=3, value=size)
-        ws_output.cell(row=next_row, column=4, value=EXIT_TYPE_OPEN)
-        ws_output.cell(row=next_row, column=5, value=TOS_EXIT_MOC)
+        ws_output.cell(row=next_row, column=4, value=ibkr_exit or None)
+        ws_output.cell(row=next_row, column=5, value=tos_exit or None)
 
     # Left-align headers and data (A through E)
     left_align = Alignment(horizontal="left")
