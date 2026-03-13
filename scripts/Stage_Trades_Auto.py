@@ -1,14 +1,14 @@
 """
-Stage Trades Auto — Build Live_Trade_Info from Latest Earnings using column J flags
+Stage Trades Auto — Build Live_Trade_Info from Latest Earnings using column O flags
 
-Reads the Latest Earnings workbook (Trades sheet). Column J contains flags:
-  - Rows with "T" (letter T) in column J are included in the trade list.
+Reads the Latest Earnings workbook (Trades sheet). Column O contains flags:
+  - Rows with "T" (letter T) in column O are included in the trade list.
   - For each such row: ticker from A, direction from Y, share size from Z,
-    IBKR Exit from AZ, ToS Exit from AY.
+    IBKR Exit from AB, ToS Exit from AA.
 
 Writes to Live_Trade_Info.xlsx (same layout as Obtain_Live_Trade_Info):
   - Row 1: A1=Ticker, B1=Direction, C1=Share Size, D1=IBKR Exit, E1=ToS Exit
-  - Rows 2+: one row per trade; column D from Latest Earnings AZ, column E from AY.
+  - Rows 2+: one row per trade; column D from Latest Earnings AB, column E from AA.
 """
 
 import os
@@ -33,12 +33,12 @@ _BASE_DIR = os.path.dirname(_SCRIPT_DIR)
 SOURCE_FILE = os.path.join(_BASE_DIR, "! -- Latest Earnings Document.xlsx")
 SOURCE_SHEET = "Trades"
 HEADER_ROW = 3  # Data starts the row after headers (e.g. row 4)
-COL_FLAG = "J"
+COL_FLAG = "O"
 COL_TICKER = "A"
 COL_DIRECTION = "Y"
 COL_SIZE = "Z"
-COL_IBKR_EXIT = "AZ"   # Source for Live_Trade_Info column D
-COL_TOS_EXIT = "AY"    # Source for Live_Trade_Info column E
+COL_IBKR_EXIT = "AB"   # Source for Live_Trade_Info column D
+COL_TOS_EXIT = "AA"    # Source for Live_Trade_Info column E
 
 OUTPUT_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
 OUTPUT_SHEET = "Prices"

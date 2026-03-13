@@ -46,7 +46,7 @@ SOURCE_FILE = os.path.join(_BASE_DIR, "! -- Latest Earnings Document.xlsx")
 SOURCE_SHEET = "Trades"
 HEADER_ROW = 3
 COL_TICKER = "A"
-COL_FLAG = "K"
+COL_FLAG = "P"
 COL_OPENING_PRICE = "T"
 CHECK_END_ROW = 550
 

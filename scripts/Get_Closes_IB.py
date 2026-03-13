@@ -46,9 +46,9 @@ SOURCE_FILE = os.path.join(_BASE_DIR, "! -- Latest Earnings Document.xlsx")
 SOURCE_SHEET = "Trades"
 HEADER_ROW = 3
 COL_TICKER = "A"
-COL_FLAG = "L"
-COL_AS = "AS"
-COL_AL = "AL"
+COL_FLAG = "Q"
+COL_AS = "V"
+COL_AL = "U"
 COL_S = "S"
 
 # IB Gateway (same port as other Gateway scripts; use a distinct client ID)
@@ -242,7 +242,7 @@ def main():
 
         print(f"Fetching closing prices for {len(tickers_to_fetch)} ticker(s) from IB Gateway...")
         prices = _fetch_closes_via_ib(tickers_to_fetch)
-        tickers_by_column: dict[str, list[str]] = {"AS": [], "AL": [], "S": []}
+        tickers_by_column: dict[str, list[str]] = {"V": [], "U": [], "S": []}
 
         for row, ticker, target_col_letter in to_process:
             price = prices.get(ticker)
@@ -257,7 +257,7 @@ def main():
         print("Closing prices written to Latest Earnings (saved via Excel).")
 
         print("\nTickers written by column:")
-        for col in ("AS", "AL", "S"):
+        for col in ("V", "U", "S"):
             tickers = tickers_by_column[col]
             if tickers:
                 print(f"  Column {col}: {', '.join(tickers)}")
