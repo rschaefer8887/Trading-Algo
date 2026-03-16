@@ -27,6 +27,7 @@ from typing import List, Tuple
 
 from openpyxl import load_workbook
 
+from live_trade_info_utils import get_trade_sheet_name
 from Schwab_Auth import create_client
 
 try:
@@ -67,9 +68,10 @@ def read_live_trades() -> List[Tuple[str, str, int]]:
     if not os.path.exists(LIVE_INFO_FILE):
         raise FileNotFoundError(f"Live trade info file not found: {LIVE_INFO_FILE}")
 
+    sheet_name = get_trade_sheet_name(LIVE_INFO_FILE)
     wb = load_workbook(LIVE_INFO_FILE, data_only=True)
-    if LIVE_INFO_SHEET in wb.sheetnames:
-        ws = wb[LIVE_INFO_SHEET]
+    if sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
     else:
         ws = wb.active
 

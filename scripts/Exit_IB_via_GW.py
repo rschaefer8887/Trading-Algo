@@ -36,6 +36,8 @@ try:
 except ImportError:
     xw = None
 
+from live_trade_info_utils import get_trade_sheet_name
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -236,10 +238,11 @@ def main():
                     pass
                 app = None
             return
+        sheet_name = get_trade_sheet_name(LIVE_INFO_FILE)
         try:
-            sheet = wb.sheets[LIVE_INFO_SHEET]
+            sheet = wb.sheets[sheet_name]
         except Exception:
-            print(f"Sheet '{LIVE_INFO_SHEET}' not found in {LIVE_INFO_FILE}.")
+            print(f"Sheet '{sheet_name}' not found in {LIVE_INFO_FILE}.")
             wb.close()
             return
 

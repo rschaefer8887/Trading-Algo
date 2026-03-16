@@ -47,6 +47,8 @@ try:
 except ImportError:
     xw = None
 
+from live_trade_info_utils import get_trade_sheet_name
+
 from Schwab_Auth import create_client
 
 SCHWAB_IMPORT_ERROR = None
@@ -241,10 +243,11 @@ def main() -> None:
                     pass
                 app = None
             return
+        sheet_name = get_trade_sheet_name(LIVE_INFO_FILE)
         try:
-            sheet = wb.sheets[LIVE_INFO_SHEET]
+            sheet = wb.sheets[sheet_name]
         except Exception:
-            print(f"Sheet '{LIVE_INFO_SHEET}' not found in {LIVE_INFO_FILE}.")
+            print(f"Sheet '{sheet_name}' not found in {LIVE_INFO_FILE}.")
             wb.close()
             return
 

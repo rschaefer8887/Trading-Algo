@@ -18,6 +18,8 @@ import warnings
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment
 
+from live_trade_info_utils import get_trade_sheet_name
+
 warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=UserWarning)
 warnings.filterwarnings("ignore", message=".*Conditional Formatting extension.*", category=UserWarning)
 
@@ -77,6 +79,8 @@ def main():
         print(f"Source Earnings file not found: {SOURCE_FILE}")
         return
 
+    output_sheet = get_trade_sheet_name(OUTPUT_FILE)
+
     try:
         wb_source = load_workbook(SOURCE_FILE, data_only=True)
     except PermissionError:
@@ -129,7 +133,7 @@ def main():
         if os.path.exists(OUTPUT_FILE):
             try:
                 wb_out = load_workbook(OUTPUT_FILE)
-                ws_out = wb_out[OUTPUT_SHEET] if OUTPUT_SHEET in wb_out.sheetnames else wb_out.active
+                ws_out = wb_out[output_sheet] if output_sheet in wb_out.sheetnames else wb_out.active
                 if ws_out.max_row > 1:
                     ws_out.delete_rows(2, ws_out.max_row - 1)
                 wb_out.save(OUTPUT_FILE)
@@ -144,11 +148,11 @@ def main():
     # Load or create Live_Trade_Info
     if os.path.exists(OUTPUT_FILE):
         wb_output = load_workbook(OUTPUT_FILE)
-        ws_output = wb_output[OUTPUT_SHEET] if OUTPUT_SHEET in wb_output.sheetnames else wb_output.active
+        ws_output = wb_output[output_sheet] if output_sheet in wb_output.sheetnames else wb_output.active
     else:
         wb_output = Workbook()
         ws_output = wb_output.active
-        ws_output.title = OUTPUT_SHEET
+    ws_output.title = output_sheet
 
     # Header row: Ticker, Direction, Share Size, IBKR Exit, ToS Exit
     ws_output["A1"] = "Ticker"
