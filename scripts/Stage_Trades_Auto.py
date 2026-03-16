@@ -2,23 +2,27 @@
 Stage Trades Auto — Build Live_Trade_Info from Latest Earnings using column O flags
 
 Reads the Latest Earnings workbook (Trades sheet). Column O contains flags:
-  - Rows with "T" (letter T) in column O are included in the trade list.
-  - For each such row: ticker from A, direction from Y, share size from Z,
-    IBKR Exit from AB, ToS Exit from AA.
+  - "T" → single-day: write those rows to sheet "Daily_Trades".
+  - "1" → write to "Monday", "2" → "Tuesday", "3" → "Wednesday", "4" → "Thursday".
+  - If any 1/2/3/4 are found, use only weekday rows (ignore T) and print
+    "No clear single day range, writing weekday trades."
 
-Writes to Live_Trade_Info.xlsx (same layout as Obtain_Live_Trade_Info):
+For each row: ticker from A, direction from Y, share size from Z,
+IBKR Exit from AB, ToS Exit from AA.
+
+Writes to Live_Trade_Info.xlsx (same layout for Daily_Trades and weekday sheets):
   - Row 1: A1=Ticker, B1=Direction, C1=Share Size, D1=IBKR Exit, E1=ToS Exit
-  - Rows 2+: one row per trade; column D from Latest Earnings AB, column E from AA.
+  - Rows 2+: one row per trade.
 """
 
 import os
 import sys
 import warnings
+from typing import Any, Dict, List, Optional, Tuple
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment
-
-from live_trade_info_utils import get_trade_sheet_name
+from openpyxl.worksheet.worksheet import Worksheet
 
 warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=UserWarning)
 warnings.filterwarnings("ignore", message=".*Conditional Formatting extension.*", category=UserWarning)
@@ -43,43 +47,85 @@ COL_IBKR_EXIT = "AB"   # Source for Live_Trade_Info column D
 COL_TOS_EXIT = "AA"    # Source for Live_Trade_Info column E
 
 OUTPUT_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
-OUTPUT_SHEET = "Daily_Trades"
+DAILY_SHEET = "Daily_Trades"
+WEEKDAY_SHEETS = ("Monday", "Tuesday", "Wednesday", "Thursday")
 HEADER_D1 = "IBKR Exit"
 HEADER_E1 = "ToS Exit"
 
+# Column O: 1 -> Monday, 2 -> Tuesday, 3 -> Wednesday, 4 -> Thursday
+_FLAG_TO_WEEKDAY = {1: "Monday", 2: "Tuesday", 3: "Wednesday", 4: "Thursday"}
 
-def _is_t_flag(cell_value) -> bool:
-    """True if cell is the letter T (include this row). Case-insensitive."""
+
+def _parse_flag(cell_value: Any) -> Optional[Any]:
+    """
+    Parse column O. Returns "T", 1, 2, 3, 4, or None (skip).
+    Accepts string or int for numbers (e.g. "1" or 1 -> 1).
+    """
     if cell_value is None:
-        return False
-    return str(cell_value).strip().upper() == "T"
+        return None
+    s = str(cell_value).strip().upper()
+    if s == "T":
+        return "T"
+    try:
+        n = int(cell_value) if isinstance(cell_value, (int, float)) else int(s)
+        if 1 <= n <= 4:
+            return n
+    except (ValueError, TypeError):
+        pass
+    return None
 
 
-def _normalize_ticker(cell_value):
+def _normalize_ticker(cell_value: Any) -> Optional[str]:
     if cell_value is None:
         return None
     return str(cell_value).strip().upper()
 
 
-def _normalize_direction(cell_value):
+def _normalize_direction(cell_value: Any) -> Optional[str]:
     if cell_value is None:
         return None
     return str(cell_value).strip().lower()
 
 
-def _cell_to_str(cell_value):
+def _cell_to_str(cell_value: Any) -> str:
     """Return cell value as string for exit-type columns; empty string if None."""
     if cell_value is None:
         return ""
     return str(cell_value).strip()
 
 
-def main():
+# Trade tuple: (ticker, direction, size, ibkr_exit, tos_exit)
+TradeRow = Tuple[str, str, Any, str, str]
+
+
+def _write_trades_to_sheet(ws: Worksheet, trades: List[TradeRow]) -> None:
+    """Write header row and trade rows to sheet (same format as Daily_Trades)."""
+    ws["A1"] = "Ticker"
+    ws["B1"] = "Direction"
+    ws["C1"] = "Share Size"
+    ws["D1"] = HEADER_D1
+    ws["E1"] = HEADER_E1
+    if ws.max_row > 1:
+        ws.delete_rows(2, ws.max_row - 1)
+    for ticker, direction, size, ibkr_exit, tos_exit in trades:
+        next_row = ws.max_row + 1
+        ws.cell(row=next_row, column=1, value=ticker)
+        ws.cell(row=next_row, column=2, value=direction)
+        ws.cell(row=next_row, column=3, value=size)
+        ws.cell(row=next_row, column=4, value=ibkr_exit or None)
+        ws.cell(row=next_row, column=5, value=tos_exit or None)
+    left_align = Alignment(horizontal="left")
+    for col in range(1, 6):
+        ws.cell(row=1, column=col).alignment = left_align
+    for row in range(2, ws.max_row + 1):
+        for col in range(1, 6):
+            ws.cell(row=row, column=col).alignment = left_align
+
+
+def main() -> None:
     if not os.path.exists(SOURCE_FILE):
         print(f"Source Earnings file not found: {SOURCE_FILE}")
         return
-
-    output_sheet = get_trade_sheet_name(OUTPUT_FILE)
 
     try:
         wb_source = load_workbook(SOURCE_FILE, data_only=True)
@@ -96,11 +142,15 @@ def main():
     max_row = ws_source.max_row
     start_row = HEADER_ROW + 1
 
-    # Collect every row where column J has "T"
-    trades = []  # list of (ticker, direction, size, ibkr_exit, tos_exit)
+    # Collect by flag: "T" -> single-day list; 1,2,3,4 -> weekday lists
+    t_rows: List[TradeRow] = []
+    by_weekday: Dict[str, List[TradeRow]] = {
+        "Monday": [], "Tuesday": [], "Wednesday": [], "Thursday": []
+    }
+
     for row in range(start_row, max_row + 1):
-        flag_cell = ws_source[f"{COL_FLAG}{row}"].value
-        if not _is_t_flag(flag_cell):
+        flag_val = _parse_flag(ws_source[f"{COL_FLAG}{row}"].value)
+        if flag_val is None:
             continue
 
         raw_ticker = ws_source[f"{COL_TICKER}{row}"].value
@@ -125,66 +175,70 @@ def main():
             print(f"Row {row}: missing share size for ticker {ticker}; skipping.")
             continue
 
-        trades.append((ticker, direction, size, ibkr_exit, tos_exit))
+        row_data: TradeRow = (ticker, direction, size, ibkr_exit, tos_exit)
+        if flag_val == "T":
+            t_rows.append(row_data)
+        else:
+            day_name = _FLAG_TO_WEEKDAY[flag_val]
+            by_weekday[day_name].append(row_data)
 
-    if not trades:
-        print("No valid trades found (no rows with 'T' in column J had ticker, direction, and share size).")
-        # Clear Live_Trade_Info so Open_Trades_GW / Open_Trades_ToS see no trades
+    # Any weekday with at least one row?
+    has_weekday = any(by_weekday[d] for d in WEEKDAY_SHEETS)
+    total_trades = len(t_rows) + sum(len(by_weekday[d]) for d in WEEKDAY_SHEETS)
+
+    if total_trades == 0:
+        print("No valid trades found (no rows with 'T' or 1/2/3/4 in column O had ticker, direction, and share size).")
         if os.path.exists(OUTPUT_FILE):
             try:
                 wb_out = load_workbook(OUTPUT_FILE)
-                ws_out = wb_out[output_sheet] if output_sheet in wb_out.sheetnames else wb_out.active
-                if ws_out.max_row > 1:
-                    ws_out.delete_rows(2, ws_out.max_row - 1)
-                wb_out.save(OUTPUT_FILE)
-                print("Cleared existing trades in Live_Trade_Info.")
+                if DAILY_SHEET in wb_out.sheetnames:
+                    ws_out = wb_out[DAILY_SHEET]
+                    if ws_out.max_row > 1:
+                        ws_out.delete_rows(2, ws_out.max_row - 1)
+                    wb_out.save(OUTPUT_FILE)
+                    print("Cleared existing trades in Live_Trade_Info (Daily_Trades).")
             except PermissionError:
                 print("Could not update Live_Trade_Info (file may be open). Please close it.")
                 sys.exit(1)
-        sys.exit(0)  # Clean exit for scheduled runs with no trades
+        sys.exit(0)
 
-    print(f"Collected {len(trades)} trade(s) from Earnings (column J = T).")
-
-    # Load or create Live_Trade_Info
-    if os.path.exists(OUTPUT_FILE):
-        wb_output = load_workbook(OUTPUT_FILE)
-        ws_output = wb_output[output_sheet] if output_sheet in wb_output.sheetnames else wb_output.active
+    if has_weekday:
+        print("No clear single day range, writing weekday trades.")
+        # Multi-day: write only weekday sheets (ignore T rows)
+        if not os.path.exists(OUTPUT_FILE):
+            wb_output = Workbook()
+            wb_output.remove(wb_output.active)
+        else:
+            wb_output = load_workbook(OUTPUT_FILE)
+        for day_name in WEEKDAY_SHEETS:
+            trades_for_day = by_weekday[day_name]
+            if not trades_for_day:
+                continue
+            if day_name not in wb_output.sheetnames:
+                wb_output.create_sheet(day_name)
+            ws = wb_output[day_name]
+            _write_trades_to_sheet(ws, trades_for_day)
+            print(f"Wrote {len(trades_for_day)} trade(s) to sheet '{day_name}'.")
+        wb_output.save(OUTPUT_FILE)
+        all_tickers = []
+        for day_name in WEEKDAY_SHEETS:
+            for t in by_weekday[day_name]:
+                all_tickers.append(t[0])
+        print(f"Tickers: {', '.join(all_tickers)}.")
     else:
-        wb_output = Workbook()
-        ws_output = wb_output.active
-    ws_output.title = output_sheet
-
-    # Header row: Ticker, Direction, Share Size, IBKR Exit, ToS Exit
-    ws_output["A1"] = "Ticker"
-    ws_output["B1"] = "Direction"
-    ws_output["C1"] = "Share Size"
-    ws_output["D1"] = HEADER_D1
-    ws_output["E1"] = HEADER_E1
-
-    # Clear existing data rows (2+)
-    if ws_output.max_row > 1:
-        ws_output.delete_rows(2, ws_output.max_row - 1)
-
-    # Write one row per trade; column D from Latest Earnings AZ, column E from AY
-    for ticker, direction, size, ibkr_exit, tos_exit in trades:
-        next_row = ws_output.max_row + 1
-        ws_output.cell(row=next_row, column=1, value=ticker)
-        ws_output.cell(row=next_row, column=2, value=direction)
-        ws_output.cell(row=next_row, column=3, value=size)
-        ws_output.cell(row=next_row, column=4, value=ibkr_exit or None)
-        ws_output.cell(row=next_row, column=5, value=tos_exit or None)
-
-    # Left-align headers and data (A through E)
-    left_align = Alignment(horizontal="left")
-    for col in range(1, 6):
-        ws_output.cell(row=1, column=col).alignment = left_align
-    for row in range(2, ws_output.max_row + 1):
-        for col in range(1, 6):
-            ws_output.cell(row=row, column=col).alignment = left_align
-
-    wb_output.save(OUTPUT_FILE)
-    print(f"Wrote {len(trades)} trade(s) to '{OUTPUT_FILE}' (sheet '{ws_output.title}').")
-    print(f"Tickers: {', '.join(t[0] for t in trades)}.")
+        # Single-day: only T rows -> Daily_Trades
+        print(f"Collected {len(t_rows)} trade(s) from Earnings (column O = T).")
+        if os.path.exists(OUTPUT_FILE):
+            wb_output = load_workbook(OUTPUT_FILE)
+            ws_output = wb_output[DAILY_SHEET] if DAILY_SHEET in wb_output.sheetnames else wb_output.active
+        else:
+            wb_output = Workbook()
+            ws_output = wb_output.active
+        ws_output.title = DAILY_SHEET
+        _write_trades_to_sheet(ws_output, t_rows)
+        wb_output.save(OUTPUT_FILE)
+        print(f"Wrote {len(t_rows)} trade(s) to '{OUTPUT_FILE}' (sheet '{DAILY_SHEET}').")
+        print(f"Tickers: {', '.join(t[0] for t in t_rows)}.")
 
 
 if __name__ == "__main__":
