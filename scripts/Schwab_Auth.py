@@ -19,7 +19,22 @@ to reuse the same credentials and token store.
 import json
 import os
 import asyncio
-from typing import Any, Dict, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional, Tuple
+from zoneinfo import ZoneInfo
+
+MOUNTAIN_TZ = ZoneInfo("America/Denver")
+
+
+def _format_mountain_12h(dt: datetime) -> str:
+    """Format datetime in US Mountain Time, 12-hour with AM/PM (no leading zero on hour)."""
+    mt = dt.astimezone(MOUNTAIN_TZ)
+    hour = int(mt.strftime("%I"))  # 01-12, strip leading zero
+    return mt.strftime(f"%b %d, %Y {hour}:%M %p MT")
+
+# Refresh token expires 7 days from receipt; we warn after 6 days.
+REFRESH_TOKEN_DAYS_VALID = 7
+WARN_AFTER_DAYS = 6
 
 try:
     asyncio.get_event_loop()
@@ -27,10 +42,12 @@ except RuntimeError:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
 CONFIG_FILENAME = "schwab_config.json"
+AUTH_TIMESTAMP_FILENAME = "schwab_auth_timestamp.json"
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _BASE_DIR = os.path.dirname(_SCRIPT_DIR)
 CONFIG_PATH = os.path.join(_BASE_DIR, CONFIG_FILENAME)
+AUTH_TIMESTAMP_PATH = os.path.join(_BASE_DIR, AUTH_TIMESTAMP_FILENAME)
 
 SCHWAB_PY_IMPORT_ERROR = None
 try:
@@ -38,6 +55,59 @@ try:
 except Exception as e:  # pragma: no cover - import-time failure
     easy_client = None  # type: ignore[assignment]
     SCHWAB_PY_IMPORT_ERROR = e
+
+
+def read_auth_timestamp(path: str = AUTH_TIMESTAMP_PATH) -> Tuple[Optional[datetime], Optional[float], Optional[str]]:
+    """
+    Read the last-auth timestamp from disk.
+    Returns (timestamp_utc, age_in_days, display_mountain) or (None, None, None) if missing/invalid.
+    display_mountain is 12-hour Mountain Time string for printing.
+    """
+    if not os.path.exists(path):
+        return None, None, None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        ts_str = data.get("last_auth_utc")
+        if not ts_str:
+            return None, None, None
+        ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - ts).total_seconds() / (24 * 3600)
+        display = data.get("last_auth_mountain") or _format_mountain_12h(ts)
+        return ts, age, display
+    except (json.JSONDecodeError, ValueError, OSError):
+        return None, None, None
+
+
+def write_auth_timestamp(path: str = AUTH_TIMESTAMP_PATH) -> None:
+    """Record current time when a new refresh token was created (full OAuth). Stores UTC and Mountain Time (12-hour)."""
+    now_utc = datetime.now(timezone.utc)
+    data = {
+        "last_auth_utc": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "last_auth_mountain": _format_mountain_12h(now_utc),
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def check_expiry_warning(path: str = AUTH_TIMESTAMP_PATH) -> None:
+    """
+    If a timestamp exists and is >= WARN_AFTER_DAYS old, print a warning
+    that the refresh token will expire soon (7-day validity).
+    """
+    _, age, display_mt = read_auth_timestamp(path)
+    if age is None:
+        return
+    if age >= WARN_AFTER_DAYS:
+        days_left = max(0, REFRESH_TOKEN_DAYS_VALID - age)
+        last_str = f" (Last auth: {display_mt})" if display_mt else ""
+        print(
+            f"\n*** WARNING: Schwab refresh token is approaching expiry. "
+            f"Last auth was {age:.1f} days ago{last_str}; token is valid for {REFRESH_TOKEN_DAYS_VALID} days. "
+            f"Approx. {days_left:.1f} day(s) remaining. Re-run this script to re-authenticate. ***\n"
+        )
 
 
 def load_config(path: str = CONFIG_PATH) -> Dict[str, Any]:
@@ -83,14 +153,31 @@ def create_client() -> Tuple[Any, Dict[str, Any]]:
 
 def main() -> None:
     """
-    Simple sanity check: create a client and print basic account info.
-    This will run the OAuth flow in your browser the first time.
+    Create a client and print basic account info.
+    Asks whether to do a full OAuth reauthorization (resets the 7-day refresh-token clock).
+    Otherwise uses existing refresh token if present.
     """
+    cfg = load_config()
+    token_path_full = os.path.join(_BASE_DIR, cfg["token_path"])
+    token_file_existed = os.path.exists(token_path_full)
+
+    did_full_oauth = False
+    if token_file_existed:
+        reply = input("Do a full OAuth reauthorization? (resets 7-day clock) [y/N]: ").strip().lower()
+        if reply in ("y", "yes"):
+            os.remove(token_path_full)
+            did_full_oauth = True
+            print("Full OAuth reauthorization: token file removed; browser will open to sign in.")
+    else:
+        did_full_oauth = True  # first run: no token file, OAuth will run
+
     try:
         client, cfg = create_client()
     except Exception as e:
         print(e)
         return
+
+    check_expiry_warning()
 
     try:
         resp = client.get_accounts()
@@ -108,6 +195,8 @@ def main() -> None:
         print(f"Authenticated but failed to fetch accounts: {e}")
         return
 
+    if did_full_oauth:
+        write_auth_timestamp()
     print("Schwab authentication successful.")
     print(f"Loaded {count} account record(s). Configured account_id: {cfg.get('account_id')}")
 
