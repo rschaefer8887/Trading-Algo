@@ -48,7 +48,7 @@ size_column_letter = "Z"
 # Output workbook path. This file is read by Send_Live_Trades_IBKR.py to place orders.
 output_file = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
 # Sheet name in the output workbook; change if your Live_Trade_Info uses a different sheet.
-output_sheet = "Sheet1"  # Use the first sheet by default; adjust if needed
+output_sheet = "Daily_Trades"  # Sheet name in Live_Trade_Info.xlsx
 
 
 # ---------------------------------------------------------------------------

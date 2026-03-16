@@ -2,7 +2,7 @@
 Open_Trades_ToS — Send equity entry trades to Schwab based on Live_Trade_Info.xlsx.
 
 Workflow:
-- Reads Live_Trade_Info.xlsx (sheet "Prices"):
+- Reads Live_Trade_Info.xlsx (sheet "Daily_Trades"):
     A: Ticker (e.g. AAPL)
     B: Direction ("long" / "short")
     C: Share Size (integer)
@@ -49,7 +49,7 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _BASE_DIR = os.path.dirname(_SCRIPT_DIR)
 
 LIVE_INFO_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
-LIVE_INFO_SHEET = "Prices"
+LIVE_INFO_SHEET = "Daily_Trades"
 
 
 def _normalize_direction(direction_cell) -> str:

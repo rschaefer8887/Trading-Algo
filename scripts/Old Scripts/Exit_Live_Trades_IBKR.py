@@ -54,7 +54,7 @@ _BASE_DIR = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 # Configuration — must match your entry script / TWS
 # ---------------------------------------------------------------------------
 LIVE_INFO_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
-LIVE_INFO_SHEET = "Sheet1"
+LIVE_INFO_SHEET = "Daily_Trades"
 
 # Earnings file: used to read exit type (column R) per ticker (column A)
 EARNINGS_FILE = os.path.join(_BASE_DIR, "! -- Latest Earnings Document.xlsx")

@@ -7,7 +7,7 @@ Logic mirrors Exit_IB_via_GW, but:
     - "Open" → MARKET (execute during the session)
     - Anything else (including "MOC" from Stage_Trades_Auto) → MARKET_ON_CLOSE
 
-Workbook shape (sheet "Prices" in Live_Trade_Info.xlsx):
+Workbook shape (sheet "Daily_Trades" in Live_Trade_Info.xlsx):
 - Column A: Ticker
 - Column B: Direction ("long" / "short")
 - Column C: Share Size
@@ -81,7 +81,7 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _BASE_DIR = os.path.dirname(_SCRIPT_DIR)
 
 LIVE_INFO_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
-LIVE_INFO_SHEET = "Prices"
+LIVE_INFO_SHEET = "Daily_Trades"
 
 DRY_RUN = False  # When True, only print planned exits; do not send orders.
 

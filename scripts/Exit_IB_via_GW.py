@@ -6,7 +6,7 @@ order type changed from "Open" to "MOC". If yes, lists symbols, you enter which 
 (comma-space separated, up to 10); script writes "MOC" to column D for those rows,
 saves the workbook, then reads column D and sends MOC/MKT orders accordingly.
 
-- Reads/writes Live_Trade_Info.xlsx (sheet "Prices"), columns A–D via xlwings.
+- Reads/writes Live_Trade_Info.xlsx (sheet "Daily_Trades"), columns A–D via xlwings.
 - Column D: "Open" → MKT, else → MOC. You can change Open → MOC before sending.
 - Still prompts "Send live exit orders? (y/n)" before connecting and sending.
 
@@ -46,7 +46,7 @@ _BASE_DIR = os.path.dirname(_SCRIPT_DIR)
 # Configuration
 # ---------------------------------------------------------------------------
 LIVE_INFO_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
-LIVE_INFO_SHEET = "Prices"
+LIVE_INFO_SHEET = "Daily_Trades"
 
 IB_HOST = "127.0.0.1"
 IB_PORT = 4001

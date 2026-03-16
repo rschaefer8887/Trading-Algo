@@ -41,7 +41,7 @@ COL_IBKR_EXIT = "AB"   # Source for Live_Trade_Info column D
 COL_TOS_EXIT = "AA"    # Source for Live_Trade_Info column E
 
 OUTPUT_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
-OUTPUT_SHEET = "Prices"
+OUTPUT_SHEET = "Daily_Trades"
 HEADER_D1 = "IBKR Exit"
 HEADER_E1 = "ToS Exit"
 

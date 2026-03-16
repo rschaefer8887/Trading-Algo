@@ -57,7 +57,7 @@ _BASE_DIR = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 # Configuration — IB Gateway (not TWS)
 # ---------------------------------------------------------------------------
 LIVE_INFO_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
-LIVE_INFO_SHEET = "Prices"
+LIVE_INFO_SHEET = "Daily_Trades"
 # Column D = IB Exit (written by Stage_Trades_Auto); "Open" → MKT, else → MOC
 
 # IB Gateway API connection (4001 = live, 4002 = paper). Use different client ID than Open_Trades_GW.
