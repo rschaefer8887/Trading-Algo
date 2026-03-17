@@ -3,7 +3,7 @@ Stage Trades Auto — Build Live_Trade_Info from Latest Earnings using column O 
 
 Reads the Latest Earnings workbook (Trades sheet). Column O contains flags:
   - "T" → single-day: write those rows to sheet "Daily_Trades".
-  - "1" → write to "Monday", "2" → "Tuesday", "3" → "Wednesday", "4" → "Thursday".
+  - "1" → Monday, "2" → Tuesday, "3" → Wednesday, "4" → Thursday, "5" → Friday.
   - If any 1/2/3/4 are found, use only weekday rows (ignore T) and print
     "No clear single day range, writing weekday trades."
 
@@ -48,18 +48,18 @@ COL_TOS_EXIT = "AA"    # Source for Live_Trade_Info column E
 
 OUTPUT_FILE = os.path.join(_BASE_DIR, "Live_Trade_Info.xlsx")
 DAILY_SHEET = "Daily_Trades"
-WEEKDAY_SHEETS = ("Monday", "Tuesday", "Wednesday", "Thursday")
+WEEKDAY_SHEETS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
 HEADER_D1 = "IBKR Exit"
 HEADER_E1 = "ToS Exit"
 
-# Column O: 1 -> Monday, 2 -> Tuesday, 3 -> Wednesday, 4 -> Thursday
-_FLAG_TO_WEEKDAY = {1: "Monday", 2: "Tuesday", 3: "Wednesday", 4: "Thursday"}
+# Column O: 1 -> Monday, 2 -> Tuesday, 3 -> Wednesday, 4 -> Thursday, 5 -> Friday
+_FLAG_TO_WEEKDAY = {1: "Monday", 2: "Tuesday", 3: "Wednesday", 4: "Thursday", 5: "Friday"}
 
 
 def _parse_flag(cell_value: Any) -> Optional[Any]:
     """
-    Parse column O. Returns "T", 1, 2, 3, 4, or None (skip).
-    Accepts string or int for numbers (e.g. "1" or 1 -> 1).
+    Parse column O. Returns "T", 1, 2, 3, 4, 5, or None (skip).
+    Accepts string or int for numbers (e.g. "1" or 1 -> 1). 5 = Friday.
     """
     if cell_value is None:
         return None
@@ -68,7 +68,7 @@ def _parse_flag(cell_value: Any) -> Optional[Any]:
         return "T"
     try:
         n = int(cell_value) if isinstance(cell_value, (int, float)) else int(s)
-        if 1 <= n <= 4:
+        if 1 <= n <= 5:
             return n
     except (ValueError, TypeError):
         pass
@@ -145,7 +145,7 @@ def main() -> None:
     # Collect by flag: "T" -> single-day list; 1,2,3,4 -> weekday lists
     t_rows: List[TradeRow] = []
     by_weekday: Dict[str, List[TradeRow]] = {
-        "Monday": [], "Tuesday": [], "Wednesday": [], "Thursday": []
+        "Monday": [], "Tuesday": [], "Wednesday": [], "Thursday": [], "Friday": []
     }
 
     for row in range(start_row, max_row + 1):
