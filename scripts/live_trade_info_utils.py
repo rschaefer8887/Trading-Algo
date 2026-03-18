@@ -27,15 +27,50 @@ def get_trade_sheet_name(file_path: str) -> str:
     """
     if not file_path or not os.path.exists(file_path):
         return DEFAULT_SHEET
+    openpyxl_value = None
     try:
         from openpyxl import load_workbook
+
         wb = load_workbook(file_path, data_only=True)
-        if TRADE_MODE_SHEET not in wb.sheetnames:
-            return DEFAULT_SHEET
-        ws = wb[TRADE_MODE_SHEET]
-        value = ws[TRADE_MODE_CELL].value
+        try:
+            if TRADE_MODE_SHEET not in wb.sheetnames:
+                openpyxl_value = None
+            else:
+                ws = wb[TRADE_MODE_SHEET]
+                openpyxl_value = ws[TRADE_MODE_CELL].value
+        finally:
+            try:
+                wb.close()
+            except Exception:
+                pass
     except Exception:
-        return DEFAULT_SHEET
+        openpyxl_value = None
+
+    # Excel dropdown values sometimes come through as None via openpyxl.
+    # If we didn't get a value, fall back to xlwings (evaluated by Excel).
+    value = openpyxl_value
+    if value is None:
+        try:
+            import xlwings as xw  # type: ignore
+
+            app = xw.App(visible=False)
+            wb = None
+            try:
+                wb = app.books.open(file_path)
+                value = wb.sheets[TRADE_MODE_SHEET].range(TRADE_MODE_CELL).value
+            finally:
+                if wb is not None:
+                    try:
+                        wb.close()
+                    except Exception:
+                        pass
+                try:
+                    app.quit()
+                except Exception:
+                    pass
+        except Exception:
+            value = None
+
     if value is None:
         return DEFAULT_SHEET
     if str(value).strip().lower() == MODE_SINGLE_DAY.lower():

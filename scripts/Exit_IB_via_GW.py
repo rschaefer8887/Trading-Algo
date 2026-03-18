@@ -8,7 +8,7 @@ saves the workbook, then reads column D and sends MOC/MKT orders accordingly.
 
 - Reads/writes Live_Trade_Info.xlsx (sheet "Daily_Trades"), columns A–D via xlwings.
 - Column D: "Open" → MKT, else → MOC. You can change Open → MOC before sending.
-- Still prompts "Send live exit orders? (y/n)" before connecting and sending.
+- Sends IB exit orders without interactive prompts (Task Scheduler friendly).
 
 Prerequisites: IB Gateway running (API enabled), pip install ib_insync xlwings.
 Close Live_Trade_Info.xlsx in Excel before running.
@@ -36,7 +36,10 @@ try:
 except ImportError:
     xw = None
 
-from live_trade_info_utils import get_trade_sheet_name
+from datetime import datetime
+
+from live_trade_info_utils import MODE_SINGLE_DAY, TRADE_MODE_CELL, TRADE_MODE_SHEET
+from earnings_exit_type_utils import read_exit_types_from_latest_earnings
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -120,15 +123,38 @@ def _parse_moc_input(user_input: str) -> List[str]:
     return parts[:MAX_SYMBOLS_TO_CHANGE]
 
 
+def _last_row_by_ticker(sheet, col_letter: str = "A", min_row: int = 2, max_scan: int = 5000) -> int:
+    """
+    Robustly compute last row by scanning a column range once and finding the last non-empty ticker.
+
+    This avoids relying on `sheet.used_range.last_cell.row`, which can be wrong in some cases
+    and causes us to miss staged trades.
+    """
+    try:
+        vals = sheet.range(f"{col_letter}{min_row}:{col_letter}{max_scan}").value
+        last = min_row - 1
+        if vals is None:
+            return last
+        for i, v in enumerate(vals):
+            cell_val = v[0] if isinstance(v, list) else v
+            if cell_val is None:
+                continue
+            if str(cell_val).strip() != "":
+                last = min_row + i
+        return last
+    except Exception:
+        try:
+            return sheet.used_range.last_cell.row
+        except Exception:
+            return min_row - 1
+
+
 def read_exit_trade_info(sheet):
     """
     Read columns A–D from sheet. Column D = IB Exit.
     Returns exits = [(ticker, action, size, order_type), ...].
     """
-    try:
-        max_row = sheet.used_range.last_cell.row
-    except Exception:
-        max_row = 1000
+    max_row = _last_row_by_ticker(sheet, col_letter="A", min_row=2, max_scan=5000)
 
     exits: List[Tuple[str, str, int, str]] = []
 
@@ -238,7 +264,17 @@ def main():
                     pass
                 app = None
             return
-        sheet_name = get_trade_sheet_name(LIVE_INFO_FILE)
+        # Decide which sheet to read from by reading Trade_Mode!C3
+        # directly from the already-open xlwings workbook (avoids helper re-opening/locking issues).
+        try:
+            trade_mode_value = wb.sheets[TRADE_MODE_SHEET].range(TRADE_MODE_CELL).value
+        except Exception:
+            trade_mode_value = None
+
+        if trade_mode_value is not None and str(trade_mode_value).strip().lower() == MODE_SINGLE_DAY.lower():
+            sheet_name = "Daily_Trades"
+        else:
+            sheet_name = datetime.now().strftime("%A")
         try:
             sheet = wb.sheets[sheet_name]
         except Exception:
@@ -246,26 +282,76 @@ def main():
             wb.close()
             return
 
-        # Get symbols for optional Open → MOC prompt
-        symbols = _get_symbols_from_sheet(sheet)
-        if not symbols:
-            print("No symbols found in Live_Trade_Info; nothing to do.")
+        # Refresh exit-type values from Latest Earnings (just before sending orders).
+        # Latest Earnings -> Live_Trade_Info:
+        #   AB (IB Exit) -> Live_Trade_Info column D
+        single_day_mode = sheet_name == "Daily_Trades"
+        # Only update the single sheet we are about to read/place orders from.
+        # (Multi-day mode still filters earnings by 1..5, but we only write back to the current sheet.)
+        target_sheet_names = [sheet_name]
+        try:
+            print("\nRefreshing IB exit types from Latest Earnings Document (AB)...")
+            lookup = read_exit_types_from_latest_earnings(single_day=single_day_mode)
+        except Exception as e:
+            print(f"Failed to refresh exit types from Latest Earnings: {e}")
             wb.close()
-            sys.exit(0)  # Clean exit for scheduled runs with no trades
+            return
 
-        symbols_str = ", ".join(symbols)
-        reply = input(
-            "\nAre there any symbols that need their order type to change from \"Open\" to \"MOC\"? (y/n): "
-        ).strip().lower()
-        if reply in ("y", "yes"):
-            which = input(
-                f"Which ones to change to MOC ({symbols_str})? "
-            ).strip()
-            tickers_to_moc = _parse_moc_input(which)
-            if tickers_to_moc:
-                n = _set_exit_type_to_moc(sheet, tickers_to_moc)
-                wb.save()
-                print(f"Updated {n} row(s) to MOC for: {', '.join(tickers_to_moc)}.")
+        updated_rows = 0
+        for target_sheet_name in target_sheet_names:
+            try:
+                ws_target = wb.sheets[target_sheet_name]
+            except Exception:
+                continue
+            max_row = _last_row_by_ticker(ws_target, col_letter="A", min_row=2, max_scan=5000)
+            if max_row < 2:
+                continue
+
+            tickers_col = ws_target.range(f"A2:A{max_row}").value
+            existing_d_col = ws_target.range(f"D2:D{max_row}").value
+
+            # xlwings returns a 2D list for multi-cell ranges: [[val],[val],...]
+            tickers_1d = []
+            if tickers_col is None:
+                continue
+            if isinstance(tickers_col, list):
+                for item in tickers_col:
+                    if isinstance(item, list):
+                        tickers_1d.append(item[0])
+                    else:
+                        tickers_1d.append(item)
+            else:
+                tickers_1d = [tickers_col]
+
+            existing_d_1d = []
+            if existing_d_col is None:
+                existing_d_1d = [None] * len(tickers_1d)
+            elif isinstance(existing_d_col, list):
+                for item in existing_d_col:
+                    if isinstance(item, list):
+                        existing_d_1d.append(item[0])
+                    else:
+                        existing_d_1d.append(item)
+            else:
+                existing_d_1d = [existing_d_col]
+
+            new_d_1d = []
+            for idx, ticker_cell in enumerate(tickers_1d):
+                if ticker_cell is None or str(ticker_cell).strip() == "":
+                    new_d_1d.append(existing_d_1d[idx] if idx < len(existing_d_1d) else None)
+                    continue
+                ticker = str(ticker_cell).strip().upper()
+                if ticker not in lookup:
+                    new_d_1d.append(existing_d_1d[idx] if idx < len(existing_d_1d) else None)
+                    continue
+                new_d_1d.append(lookup[ticker]["ib_exit"])
+                updated_rows += 1
+
+            # Write back as a column range in one operation.
+            ws_target.range(f"D2:D{max_row}").value = [[v] for v in new_d_1d]
+
+        if updated_rows:
+            print(f"Updated {updated_rows} row(s) in Live_Trade_Info column D from Latest Earnings.")
 
         exits = read_exit_trade_info(sheet)
 
@@ -274,9 +360,8 @@ def main():
             wb.close()
             sys.exit(0)  # Clean exit for scheduled runs with no trades
 
-        reply = input("\nSend live exit orders? (y/n): ").strip().lower()
-        if reply not in ("y", "yes"):
-            print("Exiting without sending orders.")
+        if DRY_RUN:
+            print("DRY_RUN is True: not sending IB exit orders.")
             wb.close()
             return
 

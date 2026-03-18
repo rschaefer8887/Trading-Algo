@@ -15,8 +15,7 @@ Workbook shape (sheet "Daily_Trades" in Live_Trade_Info.xlsx):
 - Column E: ToS Exit (used by this script only)
 
 Flow:
-- Reads/writes Live_Trade_Info.xlsx via xlwings; prompts once:
-    "Send live exit orders to Schwab? (y/n):"
+- Reads Live_Trade_Info.xlsx via xlwings.
 - For each valid row:
     - LONG  -> action SELL   (close long)
     - SHORT -> action BUY_TO_COVER (close short)
@@ -47,9 +46,12 @@ try:
 except ImportError:
     xw = None
 
-from live_trade_info_utils import get_trade_sheet_name
+from datetime import datetime
+
+from live_trade_info_utils import MODE_SINGLE_DAY, TRADE_MODE_CELL, TRADE_MODE_SHEET
 
 from Schwab_Auth import create_client
+from earnings_exit_type_utils import read_exit_types_from_latest_earnings
 
 SCHWAB_IMPORT_ERROR = None
 try:
@@ -109,6 +111,32 @@ def _tos_exit_cell_to_order_type(cell_value) -> str:
     return "MOC"
 
 
+def _last_row_by_ticker(sheet, col_letter: str = "A", min_row: int = 2, max_scan: int = 5000) -> int:
+    """
+    Robustly compute last row by scanning a column range once and finding the last non-empty ticker.
+
+    This avoids relying on `sheet.used_range.last_cell.row`, which can be wrong in some cases
+    and causes us to miss staged trades.
+    """
+    try:
+        vals = sheet.range(f"{col_letter}{min_row}:{col_letter}{max_scan}").value
+        last = min_row - 1
+        if vals is None:
+            return last
+        for i, v in enumerate(vals):
+            cell_val = v[0] if isinstance(v, list) else v
+            if cell_val is None:
+                continue
+            if str(cell_val).strip() != "":
+                last = min_row + i
+        return last
+    except Exception:
+        try:
+            return sheet.used_range.last_cell.row
+        except Exception:
+            return min_row - 1
+
+
 def read_exit_trade_info(sheet) -> List[Tuple[str, str, int, str]]:
     """
     Read columns A–C and E from sheet (Prices).
@@ -117,10 +145,7 @@ def read_exit_trade_info(sheet) -> List[Tuple[str, str, int, str]]:
       - action: 'SELL' for long, 'BUY' for short (we map BUY to buy-to-cover)
       - order_type: 'MKT' or 'MOC' based on column E (ToS Exit).
     """
-    try:
-        max_row = sheet.used_range.last_cell.row
-    except Exception:
-        max_row = 1000
+    max_row = _last_row_by_ticker(sheet, col_letter="A", min_row=2, max_scan=5000)
 
     exits: List[Tuple[str, str, int, str]] = []
 
@@ -243,13 +268,57 @@ def main() -> None:
                     pass
                 app = None
             return
-        sheet_name = get_trade_sheet_name(LIVE_INFO_FILE)
+        # Decide which sheet to read from by reading Trade_Mode!C3
+        # directly from the already-open xlwings workbook (avoids helper re-opening/locking issues).
+        try:
+            trade_mode_value = wb.sheets[TRADE_MODE_SHEET].range(TRADE_MODE_CELL).value
+        except Exception:
+            trade_mode_value = None
+
+        if trade_mode_value is not None and str(trade_mode_value).strip().lower() == MODE_SINGLE_DAY.lower():
+            sheet_name = "Daily_Trades"
+        else:
+            sheet_name = datetime.now().strftime("%A")
         try:
             sheet = wb.sheets[sheet_name]
         except Exception:
             print(f"Sheet '{sheet_name}' not found in {LIVE_INFO_FILE}.")
             wb.close()
             return
+
+        # Refresh exit-type values from Latest Earnings (just before sending orders).
+        # Latest Earnings -> Live_Trade_Info:
+        #   AA (ToS Exit) -> Live_Trade_Info column E
+        single_day_mode = sheet_name == "Daily_Trades"
+        target_sheet_names = ["Daily_Trades"] if single_day_mode else ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        try:
+            print("\nRefreshing ToS exit types from Latest Earnings Document (AA)...")
+            lookup = read_exit_types_from_latest_earnings(single_day=single_day_mode)
+        except Exception as e:
+            print(f"Failed to refresh exit types from Latest Earnings: {e}")
+            wb.close()
+            return
+
+        updated_rows = 0
+        for target_sheet_name in target_sheet_names:
+            try:
+                ws_target = wb.sheets[target_sheet_name]
+            except Exception:
+                continue
+            max_row = _last_row_by_ticker(ws_target, col_letter="A", min_row=2, max_scan=5000)
+            for row in range(2, max_row + 1):
+                ticker_cell = ws_target.range(f"A{row}").value
+                if ticker_cell is None or str(ticker_cell).strip() == "":
+                    continue
+                ticker = str(ticker_cell).strip().upper()
+                if ticker not in lookup:
+                    continue
+                tos_exit_val = lookup[ticker]["tos_exit"]
+                ws_target.range(f"E{row}").value = tos_exit_val
+                updated_rows += 1
+
+        if updated_rows:
+            print(f"Updated {updated_rows} row(s) in Live_Trade_Info column E from Latest Earnings.")
 
         exits = read_exit_trade_info(sheet)
 
@@ -258,10 +327,9 @@ def main() -> None:
             wb.close()
             sys.exit(0)  # Clean exit for scheduled runs with no trades
 
-        # Single confirmation prompt before sending
-        reply = input("\nSend live exit orders to Schwab? (y/n): ").strip().lower()
-        if reply not in ("y", "yes"):
-            print("Exiting without sending Schwab exit orders.")
+        # No interactive prompt for Task Scheduler runs.
+        if DRY_RUN:
+            print("DRY_RUN is True: not sending Schwab exit orders.")
             wb.close()
             return
 
