@@ -212,13 +212,12 @@ def main() -> None:
             wb_output = load_workbook(OUTPUT_FILE)
         for day_name in WEEKDAY_SHEETS:
             trades_for_day = by_weekday[day_name]
-            if not trades_for_day:
-                continue
             if day_name not in wb_output.sheetnames:
                 wb_output.create_sheet(day_name)
             ws = wb_output[day_name]
             _write_trades_to_sheet(ws, trades_for_day)
-            print(f"Wrote {len(trades_for_day)} trade(s) to sheet '{day_name}'.")
+            if trades_for_day:
+                print(f"Wrote {len(trades_for_day)} trade(s) to sheet '{day_name}'.")
         wb_output.save(OUTPUT_FILE)
         all_tickers = []
         for day_name in WEEKDAY_SHEETS:
