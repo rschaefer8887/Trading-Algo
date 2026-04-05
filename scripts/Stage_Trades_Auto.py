@@ -187,7 +187,7 @@ def main() -> None:
     total_trades = len(t_rows) + sum(len(by_weekday[d]) for d in WEEKDAY_SHEETS)
 
     if total_trades == 0:
-        print("No valid trades found (no rows with 'T' or 1/2/3/4 in column O had ticker, direction, and share size).")
+        print("No valid trades found (no rows with 'T' or 1/2/3/4/5 in column O had ticker, direction, and share size).")
         if os.path.exists(OUTPUT_FILE):
             try:
                 wb_out = load_workbook(OUTPUT_FILE)
