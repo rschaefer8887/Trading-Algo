@@ -15,9 +15,14 @@ Close Live_Trade_Info.xlsx in Excel before running.
 """
 
 import os
-import sys
 import asyncio
+import warnings
 from typing import List, Tuple
+
+warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=UserWarning)
+warnings.filterwarnings(
+    "ignore", message=".*Conditional Formatting extension.*", category=UserWarning
+)
 
 try:
     asyncio.get_event_loop()
@@ -241,13 +246,13 @@ def place_exit_orders_ib(ib: IB, exits: List[Tuple[str, str, int, str]]) -> None
         )
 
 
-def main():
+def main() -> int:
     if xw is None:
         print("xlwings is not installed. Install it with: pip install xlwings")
-        return
+        return 1
     if not os.path.exists(LIVE_INFO_FILE):
         print(f"Live trade info file not found: {LIVE_INFO_FILE}")
-        return
+        return 1
 
     app = None
     wb = None
@@ -263,7 +268,7 @@ def main():
                 except Exception:
                     pass
                 app = None
-            return
+            return 1
         # Decide which sheet to read from by reading Trade_Mode!C3
         # directly from the already-open xlwings workbook (avoids helper re-opening/locking issues).
         try:
@@ -280,7 +285,7 @@ def main():
         except Exception:
             print(f"Sheet '{sheet_name}' not found in {LIVE_INFO_FILE}.")
             wb.close()
-            return
+            return 1
 
         # Refresh exit-type values from Latest Earnings (just before sending orders).
         # Latest Earnings -> Live_Trade_Info:
@@ -295,7 +300,7 @@ def main():
         except Exception as e:
             print(f"Failed to refresh exit types from Latest Earnings: {e}")
             wb.close()
-            return
+            return 1
 
         updated_rows = 0
         for target_sheet_name in target_sheet_names:
@@ -356,21 +361,31 @@ def main():
         exits = read_exit_trade_info(sheet)
 
         if not exits:
-            print("No valid rows in Live_Trade_Info; nothing to exit.")
+            if updated_rows:
+                print(
+                    f"No valid exit rows on sheet '{sheet_name}'; nothing to exit. "
+                    f"(Column D was refreshed on {updated_rows} row(s) from Latest Earnings.)"
+                )
+            else:
+                print("No valid rows in Live_Trade_Info; nothing to exit.")
+            if updated_rows:
+                wb.save()
             wb.close()
-            sys.exit(0)  # Clean exit for scheduled runs with no trades
+            return 0
 
         if DRY_RUN:
             print("DRY_RUN is True: not sending IB exit orders.")
+            if updated_rows:
+                wb.save()
             wb.close()
-            return
+            return 0
 
         try:
             ib = connect_ib()
         except Exception as e:
             print(f"Failed to connect to IB Gateway: {e}")
             wb.close()
-            return
+            return 1
 
         try:
             place_exit_orders_ib(ib, exits)
@@ -381,6 +396,7 @@ def main():
 
         wb.save()
         wb.close()
+        return 0
     finally:
         if app is not None:
             try:
@@ -390,4 +406,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

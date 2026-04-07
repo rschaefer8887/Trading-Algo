@@ -31,10 +31,15 @@ Prerequisites:
 """
 
 import os
-import sys
+import warnings
 from typing import List, Tuple
 
 import asyncio
+
+warnings.filterwarnings("ignore", message=".*Unknown extension.*", category=UserWarning)
+warnings.filterwarnings(
+    "ignore", message=".*Conditional Formatting extension.*", category=UserWarning
+)
 
 try:
     asyncio.get_event_loop()
@@ -245,13 +250,13 @@ def place_exit_orders_schwab(client, account_id: str, exits: List[Tuple[str, str
             print(f"Error placing Schwab exit order for {ticker}: {e}")
 
 
-def main() -> None:
+def main() -> int:
     if xw is None:
         print("xlwings is not installed. Install it with: pip install xlwings")
-        return
+        return 1
     if not os.path.exists(LIVE_INFO_FILE):
         print(f"Live trade info file not found: {LIVE_INFO_FILE}")
-        return
+        return 1
 
     app = None
     wb = None
@@ -267,7 +272,7 @@ def main() -> None:
                 except Exception:
                     pass
                 app = None
-            return
+            return 1
         # Decide which sheet to read from by reading Trade_Mode!C3
         # directly from the already-open xlwings workbook (avoids helper re-opening/locking issues).
         try:
@@ -284,7 +289,7 @@ def main() -> None:
         except Exception:
             print(f"Sheet '{sheet_name}' not found in {LIVE_INFO_FILE}.")
             wb.close()
-            return
+            return 1
 
         # Refresh exit-type values from Latest Earnings (just before sending orders).
         # Latest Earnings -> Live_Trade_Info:
@@ -297,7 +302,7 @@ def main() -> None:
         except Exception as e:
             print(f"Failed to refresh exit types from Latest Earnings: {e}")
             wb.close()
-            return
+            return 1
 
         updated_rows = 0
         for target_sheet_name in target_sheet_names:
@@ -323,33 +328,49 @@ def main() -> None:
         exits = read_exit_trade_info(sheet)
 
         if not exits:
-            print("No valid rows in Live_Trade_Info; nothing to exit.")
+            if updated_rows and not single_day_mode:
+                print(
+                    f"No valid exit rows on today's sheet ({sheet_name}); nothing to exit. "
+                    f"(Column E was refreshed on {updated_rows} row(s) across weekday sheets.)"
+                )
+            elif updated_rows:
+                print(
+                    "No valid exit rows on Daily_Trades; nothing to exit. "
+                    f"(Column E was refreshed on {updated_rows} row(s).)"
+                )
+            else:
+                print("No valid rows in Live_Trade_Info; nothing to exit.")
+            if updated_rows:
+                wb.save()
             wb.close()
-            sys.exit(0)  # Clean exit for scheduled runs with no trades
+            return 0
 
         # No interactive prompt for Task Scheduler runs.
         if DRY_RUN:
             print("DRY_RUN is True: not sending Schwab exit orders.")
+            if updated_rows:
+                wb.save()
             wb.close()
-            return
+            return 0
 
         try:
             client, cfg = create_client()
         except Exception as e:
             print(f"Failed to create Schwab client: {e}")
             wb.close()
-            return
+            return 1
 
         account_id = cfg.get("account_id")
         if not account_id:
             print("account_id is missing from schwab_config.json; cannot place Schwab exit orders.")
             wb.close()
-            return
+            return 1
 
         place_exit_orders_schwab(client, account_id, exits)
 
         wb.save()
         wb.close()
+        return 0
     finally:
         if app is not None:
             try:
@@ -359,5 +380,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
 
