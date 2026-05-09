@@ -3,7 +3,7 @@ Schwab_Auth — OAuth helper and client factory for Schwab Trader API (sandbox o
 
 Usage:
 - Copy schwab_config.example.json to schwab_config.json at project root.
-- Fill in:
+- Fill in:y
     - api_key: your Schwab app key
     - app_secret: your Schwab app secret
     - callback_url: your registered callback URL (e.g. https://127.0.0.1:8182)
