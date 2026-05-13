@@ -9,5 +9,6 @@ if errorlevel 1 exit /b %ERRORLEVEL%
 echo y | %PY% "scripts\Exit_ToS2.py"
 if errorlevel 1 exit /b %ERRORLEVEL%
 
-(echo n & echo y) | %PY% "scripts\Exit_IB_via_GW.py"
-exit /b %ERRORLEVEL%
+REM Remvoe these comments to run the Exit_IB_via_GW.py script
+REM (echo n & echo y) | %PY% "scripts\Exit_IB_via_GW.py"
+REM exit /b %ERRORLEVEL%
