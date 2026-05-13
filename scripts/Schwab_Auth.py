@@ -92,6 +92,39 @@ def write_auth_timestamp(path: str = AUTH_TIMESTAMP_PATH) -> None:
         json.dump(data, f, indent=2)
 
 
+def print_account_numbers_for_config(client: Any, cfg: Dict[str, Any]) -> None:
+    """
+    Print accountNumber / hashValue for each linked account (API hashes for place_order / account_id).
+    Output is sensitive; use locally only.
+    """
+    try:
+        resp = client.get_account_numbers()
+    except Exception as e:
+        print(f"Could not fetch account numbers: {e}")
+        return
+    if getattr(resp, "status_code", None) != 200:
+        text = getattr(resp, "text", "") or ""
+        print(f"get_account_numbers failed: {resp.status_code} {text[:500]}")
+        return
+    try:
+        rows = resp.json()
+    except Exception as e:
+        print(f"Could not parse get_account_numbers response: {e}")
+        return
+    print("\n--- Linked accounts: accountNumber → hashValue ---")
+    print("(Put hashValue in schwab_config.json as account_id for order placement.)\n")
+    print(json.dumps(rows, indent=2))
+    configured = cfg.get("account_id")
+    if configured and isinstance(rows, list):
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            if row.get("hashValue") == configured:
+                acct = row.get("accountNumber", "?")
+                print(f"\nConfigured account_id matches accountNumber {acct}.")
+                break
+
+
 def check_expiry_warning(path: str = AUTH_TIMESTAMP_PATH) -> None:
     """
     If a timestamp exists and is >= WARN_AFTER_DAYS old, print a warning
@@ -156,6 +189,7 @@ def main() -> None:
     Create a client and print basic account info.
     Asks whether to do a full OAuth reauthorization (resets the 7-day refresh-token clock).
     Otherwise uses existing refresh token if present.
+    On success, prints get_account_numbers() (accountNumber and hashValue) for schwab_config.
     """
     cfg = load_config()
     token_path_full = os.path.join(_BASE_DIR, cfg["token_path"])
@@ -199,6 +233,7 @@ def main() -> None:
         write_auth_timestamp()
     print("Schwab authentication successful.")
     print(f"Loaded {count} account record(s). Configured account_id: {cfg.get('account_id')}")
+    print_account_numbers_for_config(client, cfg)
 
 
 if __name__ == "__main__":

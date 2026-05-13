@@ -7,4 +7,7 @@ set "PY=C:\Users\ryanc\AppData\Local\Python\pythoncore-3.14-64\python.exe"
 if errorlevel 1 exit /b %ERRORLEVEL%
 
 "%PY%" "scripts\Open_Trades_ToS.py"
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+"%PY%" "scripts\Open_Trade_ToS2.py"
 exit /b %ERRORLEVEL%
