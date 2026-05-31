@@ -51,8 +51,9 @@ AUTH_TIMESTAMP_PATH = os.path.join(_BASE_DIR, AUTH_TIMESTAMP_FILENAME)
 
 SCHWAB_PY_IMPORT_ERROR = None
 try:
-    from schwab.auth import easy_client
+    from schwab.auth import client_from_token_file, easy_client
 except Exception as e:  # pragma: no cover - import-time failure
+    client_from_token_file = None  # type: ignore[assignment]
     easy_client = None  # type: ignore[assignment]
     SCHWAB_PY_IMPORT_ERROR = e
 
@@ -180,6 +181,34 @@ def create_client() -> Tuple[Any, Dict[str, Any]]:
         token_path=os.path.join(_BASE_DIR, cfg["token_path"]),
         requested_browser="windows-default",
         interactive=False,
+    )
+    return client, cfg
+
+
+def create_client_from_token() -> Tuple[Any, Dict[str, Any]]:
+    """
+    Create a Schwab API client from the cached token file only.
+
+    Does not start browser OAuth or delete expired tokens. Run Schwab_Auth.py
+    first if authentication is needed.
+    """
+    if client_from_token_file is None:
+        raise ImportError(
+            "Could not import schwab-py. Install it with:\n"
+            "    python -m pip install --upgrade schwab-py\n"
+            f"Underlying import error: {SCHWAB_PY_IMPORT_ERROR}"
+        )
+    cfg = load_config()
+    token_path = os.path.join(_BASE_DIR, cfg["token_path"])
+    if not os.path.isfile(token_path):
+        raise FileNotFoundError(
+            f"Schwab token file not found: {token_path}\n"
+            "Run python scripts/Schwab_Auth.py first to authenticate."
+        )
+    client = client_from_token_file(
+        token_path,
+        cfg["api_key"],
+        cfg["app_secret"],
     )
     return client, cfg
 
