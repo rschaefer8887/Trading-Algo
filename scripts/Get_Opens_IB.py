@@ -3,7 +3,8 @@ Get Opens IB — Opening prices from Interactive Brokers Gateway into Latest Ear
 
 Same workflow as Get_Opens_Auto but uses IB Gateway (ib_insync) instead of yfinance
 to fetch opening prices. Reads the Latest Earnings workbook (Trades sheet):
-  - Column K: first "O" starts the range, "0" stops (only one O and one 0 through row 550).
+  - Column K: earnings date
+  - Column P: first "O" starts the range, "0" stops (only one O and one 0 through row 550).
   - Column A: ticker per row. Opening price is written to column T.
 
 IB Gateway must be running with API enabled (default port 4001 live, 4002 paper).
@@ -188,7 +189,7 @@ def main():
             max_row = 2000
         start_row = HEADER_ROW + 1
 
-        # Ensure exactly one O and one 0 in column K through row 550
+        # Ensure exactly one O and one 0 in column P through row 550
         count_o = 0
         count_zero = 0
         end_check = min(max_row, CHECK_END_ROW)
@@ -211,9 +212,9 @@ def main():
                 break
 
         if first_o_row is None:
-            print("No 'O' flag found in column K. Nothing to process.")
+            print("No 'O' flag found in column P. Nothing to process.")
             wb.close()
-            sys.exit(0)  # Clean exit for scheduled runs with no O in column K
+            sys.exit(0)  # Clean exit for scheduled runs with no O in column P
 
         to_process: list[tuple[int, str]] = []
         for row in range(first_o_row, max_row + 1):
@@ -227,7 +228,7 @@ def main():
             to_process.append((row, ticker))
 
         if not to_process:
-            print("No tickers found in rows between 'O' and '0' in column K.")
+            print("No tickers found in rows between 'O' and '0' in column P.")
             wb.close()
             sys.exit(0)  # Clean exit for scheduled runs with no tickers in range
 

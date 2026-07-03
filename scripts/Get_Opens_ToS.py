@@ -4,6 +4,7 @@ Standalone starter script (not wired into workflows yet).
 Mirrors Get_Opens_IB workbook/range behavior, but fetches daily candles via Schwab.
 
 Workbook logic (Trades sheet):
+  - Column K: earnings date
   - Column P: first "O" starts the range, "0" stops.
   - Column A: ticker per row.
   - Column T: opening price target.
