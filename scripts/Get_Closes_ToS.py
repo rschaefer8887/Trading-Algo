@@ -1,8 +1,7 @@
 ﻿"""
 Get Closes ToS - Closing prices from Schwab/ToS API into Latest Earnings.
 
-Standalone starter script (not wired into workflows yet).
-Mirrors Get_Closes_IB workbook/range behavior, but fetches daily candles via Schwab.
+Standalone script that fetches daily closes via Schwab/ToS API.
 
 Workbook logic (Trades sheet):
   - Column Q flag states: M2 -> write to V, M1 -> write to U, C -> write to S, 0 stops.

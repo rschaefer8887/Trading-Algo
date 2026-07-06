@@ -1,7 +1,6 @@
 """Get_Opens_ToS.py - Opening prices from Schwab/ToS API into Latest Earnings.
 
-Standalone starter script (not wired into workflows yet).
-Mirrors Get_Opens_IB workbook/range behavior, but fetches daily candles via Schwab.
+Standalone script that fetches daily opens via Schwab/ToS API.
 
 Workbook logic (Trades sheet):
   - Column K: earnings date
