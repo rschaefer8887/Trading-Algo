@@ -3,6 +3,9 @@ Get Closes ToS - Closing prices from Schwab/ToS API into Latest Earnings.
 
 Standalone script that fetches daily closes via Schwab/ToS API.
 
+If Latest Earnings is already open in Excel, attaches to that workbook; otherwise
+opens it in a hidden Excel instance.
+
 Workbook logic (Trades sheet):
   - Column Q flag states: M2 -> write to V, M1 -> write to U, C -> write to S, 0 stops.
   - Column A: ticker per row.
@@ -19,6 +22,7 @@ except ImportError:
     xw = None
 
 from Schwab_Auth import create_client
+from earnings_workbook_utils import open_or_attach_earnings_workbook, release_earnings_workbook
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _BASE_DIR = os.path.dirname(_SCRIPT_DIR)
@@ -150,14 +154,15 @@ def main() -> None:
         return
 
     app = None
+    wb = None
+    owned_app = False
+    owned_book = False
     try:
-        app = xw.App(visible=False)
-        wb = app.books.open(os.path.abspath(SOURCE_FILE))
+        app, wb, owned_app, owned_book = open_or_attach_earnings_workbook(SOURCE_FILE)
         try:
             sheet = wb.sheets[SOURCE_SHEET]
         except Exception:
             print(f"Sheet '{SOURCE_SHEET}' not found in {SOURCE_FILE}.")
-            wb.close()
             return
 
         try:
@@ -196,7 +201,6 @@ def main() -> None:
 
         if not to_process:
             print("No closing ranges found.")
-            wb.close()
             sys.exit(0)
 
         print(f"Fetching closing prices for {len(tickers_to_fetch)} ticker(s) from Schwab daily candles...")
@@ -217,15 +221,13 @@ def main() -> None:
         else:
             wb.save()
             print("Closing prices written to Latest Earnings (saved via Excel).")
-        wb.close()
 
         print("\nTickers resolved by column:")
         for col in (COL_V, COL_U, COL_S):
             tickers = tickers_by_column[col]
             print(f"  Column {col}: {', '.join(tickers) if tickers else '(none)'}")
     finally:
-        if app is not None:
-            app.quit()
+        release_earnings_workbook(app, wb, owned_app=owned_app, owned_book=owned_book)
 
 
 if __name__ == "__main__":
