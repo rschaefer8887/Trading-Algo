@@ -3,6 +3,9 @@
 Standalone starter script (not wired into workflows yet).
 Mirrors Get_Opens_IB workbook/range behavior, but fetches daily candles via Schwab.
 
+If Latest Earnings is already open in Excel, attaches to that workbook; otherwise
+opens it in a hidden Excel instance.
+
 Workbook logic (Trades sheet):
   - Column K: earnings date
   - Column P: first "O" starts the range, "0" stops.
@@ -21,6 +24,7 @@ except ImportError:
     xw = None
 
 from Schwab_Auth import create_client
+from earnings_workbook_utils import open_or_attach_earnings_workbook, release_earnings_workbook
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _BASE_DIR = os.path.dirname(_SCRIPT_DIR)
@@ -138,14 +142,15 @@ def main() -> None:
         return
 
     app = None
+    wb = None
+    owned_app = False
+    owned_book = False
     try:
-        app = xw.App(visible=False)
-        wb = app.books.open(os.path.abspath(SOURCE_FILE))
+        app, wb, owned_app, owned_book = open_or_attach_earnings_workbook(SOURCE_FILE)
         try:
             sheet = wb.sheets[SOURCE_SHEET]
         except Exception:
             print(f"Sheet '{SOURCE_SHEET}' not found in {SOURCE_FILE}.")
-            wb.close()
             return
 
         try:
@@ -165,7 +170,6 @@ def main() -> None:
                 count_zero += 1
         if count_o != 1 or count_zero != 1:
             print("One clean range is not selected, please clean up your open range and try again.")
-            wb.close()
             sys.exit(0)
 
         first_o_row = None
@@ -177,7 +181,6 @@ def main() -> None:
 
         if first_o_row is None:
             print("No 'O' flag found in column P. Nothing to process.")
-            wb.close()
             sys.exit(0)
 
         to_process: List[Tuple[int, str]] = []
@@ -192,7 +195,6 @@ def main() -> None:
 
         if not to_process:
             print("No tickers found in rows between 'O' and '0' in column P.")
-            wb.close()
             sys.exit(0)
 
         tickers_to_fetch = [t for _, t in to_process]
@@ -214,15 +216,13 @@ def main() -> None:
         else:
             wb.save()
             print("Opening prices written to Latest Earnings (saved via Excel).")
-        wb.close()
 
         print(
             f"\nTickers resolved for column {COL_OPENING_PRICE}: "
             f"{', '.join(written) if written else '(none)'}"
         )
     finally:
-        if app is not None:
-            app.quit()
+        release_earnings_workbook(app, wb, owned_app=owned_app, owned_book=owned_book)
 
 
 if __name__ == "__main__":
